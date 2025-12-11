@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import logger from '../utils/logger';
-import { RawMEVOpportunity } from '../types';
+import logger from './logger';
+import { RawMEVOpportunity } from './types';
 
 export class MempoolMonitor {
     private provider: ethers.WebSocketProvider;
@@ -81,4 +81,3 @@ export class MempoolMonitor {
         logger.info('Mempool monitor stopped');
     }
 }
-
