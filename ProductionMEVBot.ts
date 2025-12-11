@@ -1,8 +1,8 @@
 // ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
 import { Wallet } from 'ethers'; 
-import { JsonRpcProvider } from '@ethersproject/providers'; // Explicit provider import
-import { formatEther, parseEther } from '@ethersproject/units'; // Explicit utility import
+import { JsonRpcProvider } from '@ethersproject/providers'; // FIX: Ethers v5 provider import
+import { formatEther, parseEther } from '@ethersproject/units'; // FIX: Ethers v5 utility imports
 import { apiServer } from './APIServer';
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
 import { MempoolMonitor } from './MempoolMonitor';
@@ -11,26 +11,40 @@ import { config } from './config';
 import { RawMEVOpportunity } from './types';
 
 export class ProductionMEVBot {
-    private httpProvider: JsonRpcProvider | null = null; // Use imported class
+    private httpProvider: JsonRpcProvider | null = null;
     private wallet: Wallet | null = null;
-    // ... rest of class properties
+    private executor: FlashbotsMEVExecutor | null = null;
+    private mempool: MempoolMonitor | null = null;
+    private isRunning: boolean = false;
 
     constructor() {} 
 
     async initialize(): Promise<void> {
         try {
-            // Use imported class
-            this.httpProvider = new JsonRpcProvider(config.ethereum.rpcHttp); 
+            this.httpProvider = new JsonRpcProvider(config.ethereum.rpcHttp);
             await this.httpProvider.getNetwork();
             logger.info('Successful connection to RPC provider.');
 
             if (config.wallet.privateKey) {
-                // Use imported Wallet class
-                this.wallet = new Wallet(config.wallet.privateKey, this.httpProvider); 
+                this.wallet = new Wallet(config.wallet.privateKey, this.httpProvider);
                 logger.info(`Wallet Address: ${this.wallet.address}`);
 
                 if (config.flashbots.relaySignerKey && config.mev.helperContract) {
-                    // ... executor initialization is correct ...
+                    this.executor = new FlashbotsMEVExecutor(
+                        config.ethereum.rpcHttp,
+                        config.wallet.privateKey,
+                        config.mev.helperContract,
+                        config.mev.uniswapRouter,
+                        config.mev.wethAddress
+                    );
+                    
+                    await this.executor.initialize(); 
+                    
+                    this.mempool = new MempoolMonitor(
+                        config.ethereum.rpcWss,
+                        config.mev.uniswapRouter,
+                        config.trading.minTradeValueEth
+                    );
                 } else {
                     logger.warn('Flashbots or Helper Contract missing. Trading is disabled.');
                 }
@@ -43,8 +57,36 @@ export class ProductionMEVBot {
         }
     }
 
-    // ... startMempoolMonitoring is unchanged ...
+    async startMempoolMonitoring(): Promise<void> {
+        if (!this.wallet || !this.httpProvider || !this.mempool || !this.executor) {
+             logger.warn('MEV Bot setup incomplete. Monitoring loop cannot start.');
+             return;
+        }
 
+        this.isRunning = true;
+        
+        // Use imported utilities
+        await this.checkBalance();
+        setInterval(() => this.checkBalance(), config.trading.checkBalanceInterval);
+
+        await this.mempool.start(async (opp: RawMEVOpportunity) => {
+            logger.info(`MEV Opportunity: ${opp.type}`);
+            if (this.executor) {
+                const success = await this.executor.executeSandwich(opp);
+                if (success) {
+                    logger.info('PROFIT!');
+                    await this.withdrawProfits();
+                }
+            }
+        });
+
+        setInterval(() => {
+            if (this.executor) this.executor.periodicResync();
+        }, 30000);
+        
+        logger.info('[STEP 3] Full system operational. Monitoring mempool...');
+    }
+    
     async checkBalance(): Promise<boolean> {
         if (!this.wallet || !this.httpProvider) return false;
         try {
@@ -82,5 +124,15 @@ export class ProductionMEVBot {
         }
     }
 
-    // ... stop is unchanged
+    async stop(): Promise<void> {
+        if (!this.isRunning) return;
+        logger.info('Stopping...');
+        if (this.mempool) await this.mempool.stop();
+        // Assuming apiServer has a .stop() method
+        (apiServer as any).stop(); 
+        // Provider destruction is correct for Ethers v5/v6
+        if (this.httpProvider) (this.httpProvider as any).destroy();
+        this.isRunning = false;
+        logger.info('Stopped');
+    }
 }
