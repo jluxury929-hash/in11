@@ -1,13 +1,11 @@
-// index.ts (Application Entry Point)
+// index.ts
 
-// 🚨 CRITICAL FIX 1: Ensure environment variables are loaded FIRST.
-// This is redundant if imported by config.ts, but safe for index.
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { apiServer } from './src/api/APIServer';
-import logger from './src/utils/logger'; // Assuming logger is inside src/utils
-import { ProductionMEVBot } from './src/engine/ProductionMEVBot'; // Assuming the main bot is here
+import logger from './src/utils/logger'; // Assumed path for logger
+import { ProductionMEVBot } from './src/engine/ProductionMEVBot';
 
 async function main() {
     logger.info('='.repeat(70));
@@ -20,15 +18,14 @@ async function main() {
         await apiServer.start(); 
         
         // 2. Initialize and Start the Heavy Bot AFTER API is running.
-        // This ensures the Event Loop is free for /health checks.
         logger.info('[STEP 2] Initializing and Starting MEV Bot...');
-        const bot = new ProductionMEVBot(); // Assuming your provided bot class is here
+        const bot = new ProductionMEVBot(); 
         await bot.initialize(); // Initialize connections, Flashbots, etc.
         await bot.startMempoolMonitoring(); // Start the actual monitoring/trading loop
 
         logger.info('[STEP 3] Full system operational.');
 
-        // Setup graceful shutdown (SIGINT/SIGTERM)
+        // Setup graceful shutdown
         process.on('SIGINT', async () => {
             await bot.stop();
             process.exit(0);
@@ -46,7 +43,6 @@ async function main() {
     }
 }
 
-// CRITICAL CATCH-ALLS for stability
 process.on('uncaughtException', (error) => {
     logger.error('Uncaught Exception (FATAL):', error);
     process.exit(1);
@@ -58,4 +54,3 @@ process.on('unhandledRejection', (reason) => {
 });
 
 main();
-
