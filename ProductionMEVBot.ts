@@ -1,36 +1,31 @@
 // src/engine/ProductionMEVBot.ts
 
-import { ethers } from 'ethers'; // 🚨 FIX: Missing import
-import { apiServer } from '../api/APIServer'; // 🚨 FIX: Missing import
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // Corrected path
-import { MempoolMonitor } from './MempoolMonitor'; // Corrected path
+import { ethers } from 'ethers'; 
+import { apiServer } from '../api/APIServer'; // Corrected path
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // Corrected path (sibling file)
+import { MempoolMonitor } from './MempoolMonitor'; // Corrected path (sibling file)
 import logger from '../utils/logger'; // Corrected path
-import { config } from '../config'; // 🚨 FIX: Missing import
-import { RawMEVOpportunity } from '../types'; // 🚨 FIX: Missing import
+import { config } from '../config'; // Corrected path
+import { RawMEVOpportunity } from '../types'; // Corrected path
 
-class ProductionMEVBot {
-    // 🚨 FIX: Declare all properties being used
+export class ProductionMEVBot {
+    // Declared properties
     private httpProvider: ethers.JsonRpcProvider | null = null;
     private wallet: ethers.Wallet | null = null;
     private executor: FlashbotsMEVExecutor | null = null;
     private mempool: MempoolMonitor | null = null;
     private isRunning: boolean = false;
 
-    // 🚨 FIX: Constructor needs to exist, even if empty
+    // Constructor exists to prevent TS error
     constructor() {} 
 
-    // CRITICAL: This method performs all heavy, blocking initialization.
     async initialize(): Promise<void> {
         try {
-            // NOTE: Using JsonRpcProvider here, assuming it's faster than WebSocketProvider for initial connection
             this.httpProvider = new ethers.JsonRpcProvider(config.ethereum.rpcHttp);
-            
-            // Check initial connection by fetching chainId (optional but good practice)
             await this.httpProvider.getNetwork();
             logger.info('Successful connection to RPC provider.');
 
             if (config.wallet.privateKey) {
-                // Initialize wallet with the provider
                 this.wallet = new ethers.Wallet(config.wallet.privateKey, this.httpProvider);
                 logger.info(`Wallet Address: ${this.wallet.address}`);
 
@@ -45,7 +40,6 @@ class ProductionMEVBot {
                     );
                     await this.executor.initialize();
                     
-                    // Initialize MempoolMonitor separately
                     this.mempool = new MempoolMonitor(
                         config.ethereum.rpcWss,
                         config.mev.uniswapRouter,
@@ -59,11 +53,10 @@ class ProductionMEVBot {
             }
         } catch (error: any) {
             logger.error('Initialization error (CRITICAL - check RPC/Keys):', error);
-            throw error; // Throw to trigger process exit in index.ts
+            throw error; 
         }
     }
 
-    // NEW METHOD: Separated the monitoring loop from initialization
     async startMempoolMonitoring(): Promise<void> {
         if (!this.wallet || !this.httpProvider || !this.mempool || !this.executor) {
              logger.warn('MEV Bot setup incomplete. Monitoring loop cannot start.');
@@ -91,8 +84,7 @@ class ProductionMEVBot {
         }, 30000);
     }
     
-    // ... (checkBalance, withdrawProfits, stop methods remain the same) ...
-
+    // Declared methods (implementations from previous steps)
     async checkBalance(): Promise<boolean> {
         if (!this.wallet || !this.httpProvider) return false;
         try {
@@ -107,7 +99,24 @@ class ProductionMEVBot {
     }
 
     async withdrawProfits(): Promise<void> {
-        // ... (original implementation) ...
+        if (!config.wallet.profitAddress || !this.wallet || !this.httpProvider) return;
+        try {
+            const balance = await this.httpProvider.getBalance(this.wallet.address);
+            const balanceEth = parseFloat(ethers.formatEther(balance));
+            const profitAmount = balanceEth - config.wallet.minEthBalance - config.wallet.gasReserveEth;
+
+            if (profitAmount > 0.001) {
+                logger.info(`Withdrawing ${profitAmount.toFixed(6)} ETH`);
+                const tx = await this.wallet.sendTransaction({
+                    to: config.wallet.profitAddress,
+                    value: ethers.parseEther(profitAmount.toFixed(18))
+                });
+                await tx.wait();
+                logger.info(`Withdrawal: ${tx.hash}`);
+            }
+        } catch (error: any) {
+            logger.error('Withdrawal failed:', error);
+        }
     }
 
     async stop(): Promise<void> {
@@ -115,10 +124,8 @@ class ProductionMEVBot {
         logger.info('Stopping...');
         if (this.mempool) await this.mempool.stop();
         apiServer.stop();
-        if (this.httpProvider) (this.httpProvider as any).destroy(); // destroy method cleanup
+        if (this.httpProvider) (this.httpProvider as any).destroy();
         this.isRunning = false;
         logger.info('Stopped');
     }
 }
-
-export { ProductionMEVBot };
