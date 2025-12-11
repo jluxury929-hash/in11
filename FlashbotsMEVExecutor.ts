@@ -1,45 +1,65 @@
-// FlashbotsMEVExecutor.ts (REVERTED/FAILING CODE - Ethers v5 Syntax)
+// FlashbotsMEVExecutor.ts (Ethers v5 Syntax)
 
 import { 
-    ethers, // Global Ethers import used for providers/utils in v5
-    Wallet, 
-    TransactionRequest, 
-    TransactionResponse
+    ethers, // Rely on global import for v5 syntax
+    Wallet,
+    // FIX: Remove explicit Ethers v6 imports (TransactionRequest/Response)
 } from 'ethers'; 
 
-import * as dotenv from 'dotenv';
-dotenv.config();
+import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
 
-// Note: In Ethers v5, providers were generally accessed via the ethers.providers namespace.
-// 
+import * as dotenv from 'dotenv';
+import { logger } from './logger';
 
 export class FlashbotsMEVExecutor {
     private wallet: Wallet;
     private authSigner: Wallet;
-    // Type definition using v5 syntax
-    private provider: ethers.providers.JsonRpcProvider; 
+    private provider: ethers.providers.JsonRpcProvider; // Ethers v5 type
+    private flashbotsProvider: FlashbotsBundleProvider;
 
     constructor(
         privateKey: string, 
         authSignerKey: string, 
         rpcUrl: string, 
+        flashbotsUrl: string
     ) {
-        // --- FAILING CALL: Ethers v5 Providers syntax ---
+        // FIX: Ethers v5 syntax
         this.provider = new ethers.providers.JsonRpcProvider(rpcUrl); 
         
         this.wallet = new Wallet(privateKey, this.provider);
         this.authSigner = new Wallet(authSignerKey);
 
-        console.log(`[Executor] Initialized Wallet: ${this.wallet.address}`);
+        // Initialize Flashbots Provider
+        this.flashbotsProvider = FlashbotsBundleProvider.create(
+            this.provider,
+            this.authSigner,
+            flashbotsUrl 
+        );
+
+        logger.info(`[Executor] Initialized Wallet: ${this.wallet.address}`);
     }
 
     public async checkBalance() {
-        const balance = await this.provider.getBalance(this.wallet.address);
-        
-        // --- FAILING CALL: Ethers v5 Utils syntax ---
-        console.log(`[Executor] Current ETH Balance: ${ethers.utils.formatEther(balance)} ETH`); 
-        return balance;
+        try {
+            const balance = await this.provider.getBalance(this.wallet.address);
+            // FIX: Ethers v5 utility syntax
+            logger.info(`[Executor] Current ETH Balance: ${ethers.utils.formatEther(balance)} ETH`); 
+            return balance;
+        } catch (error) {
+            logger.error("[Executor] Error fetching balance:", error);
+            return ethers.constants.Zero;
+        }
     }
     
-    // You would have other methods here, e.g., sendBundle
+    public async sendBundle(signedTxs: string[], targetBlock: number) {
+        logger.debug(`Attempting to send bundle targeting block ${targetBlock}`);
+        
+        const bundleSubmission = await this.flashbotsProvider.sendBundle(
+            signedTxs,
+            targetBlock
+        );
+
+        logger.info(`Bundle submission successful: ${bundleSubmission.bundleHash}`);
+        return bundleSubmission;
+    }
 }
