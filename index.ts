@@ -1,15 +1,17 @@
-// index.ts (Full, Corrected)
+// index.ts
+
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { ProductionMEVBot } from './ProductionMEVBot'; 
 
+// --- Bot Startup ---
 async function main() {
     try {
         console.log("[STEP 2] Initializing and Starting MEV Bot...");
-        // NOTE: The constructor runs first, then startMonitoring runs async.
-        const bot = new ProductionMEVBot(); 
-        await bot.startMonitoring(); // This is where async executor initialization happens.
+        const bot = new ProductionMEVBot();
+        // APIServer.start(); // You can uncomment this if you need the API server
+        await bot.startMonitoring();
     } catch (error: any) {
         console.error(`[ERROR] Fatal startup failure:`);
         console.error(`[ERROR] Details: ${error.message}`);
