@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS",
-    "rootDir": "./", // FIX: Set rootDir to the current directory
+    "rootDir": "./",
     "outDir": "./dist",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -11,7 +11,7 @@
     "resolveJsonModule": true
   },
   "include": [
-    "**/*.ts" // FIX: Include all .ts files in the current directory
+    "**/*.ts"
   ],
   "exclude": [
     "node_modules",
