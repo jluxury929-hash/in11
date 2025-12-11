@@ -2,9 +2,10 @@
 
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
-import logger from './logger'; // FIX: Direct sibling import
-import { NonceManager } from './NonceManager'; // FIX: Direct sibling import
-import { RawMEVOpportunity } from './types'; // FIX: Direct sibling import
+import logger from './logger';
+import { NonceManager } from './NonceManager';
+import { RawMEVOpportunity } from './types';
+import { config } from './config'; // Make sure config is imported to access relayUrl
 
 export class FlashbotsMEVExecutor {
     private provider: ethers.JsonRpcProvider;
@@ -30,18 +31,31 @@ export class FlashbotsMEVExecutor {
     async initialize(): Promise<void> {
         logger.info('Initializing Flashbots executor...');
         try {
-            this.flashbotsProvider = await FlashbotsBundleProvider.create(
-                this.provider,
-                this.wallet
+            // 1. Create the dedicated signer for Flashbots (using the main provider)
+            const authSigner = new ethers.Wallet(
+                config.flashbots.relaySignerKey,
+                this.provider // Use the standard RPC provider for this signer
             );
+
+            // 2. CRITICAL FIX: Pass the standard provider, authSigner, and the specific Flashbots URL.
+            // This ensures the library uses the standard provider for network info, but sends bundles to the relay.
+            this.flashbotsProvider = await FlashbotsBundleProvider.create(
+                this.provider, // <-- Standard Ethers Provider (Infura/Alchemy)
+                authSigner,   // <-- Flashbots Auth Signer
+                config.flashbots.relayUrl // <-- Flashbots Relay URL (https://relay.flashbots.net)
+            );
+            
             await this.nonceManager.initialize();
             logger.info('Flashbots executor ready');
+
         } catch (error: any) {
             logger.error('Flashbots initialization failed:', error);
             throw error;
         }
     }
 
+    // ... (rest of executeSandwich and periodicResync methods remain unchanged)
+    
     async executeSandwich(opportunity: RawMEVOpportunity): Promise<boolean> {
         if (!this.flashbotsProvider) {
             logger.error('Flashbots provider not initialized');
