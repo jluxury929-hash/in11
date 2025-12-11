@@ -1,15 +1,20 @@
 // FlashbotsMEVExecutor.ts (IN ROOT DIRECTORY)
 
-import { ethers } from 'ethers';
+// Import specific classes and utilities from their dedicated paths
+import { Wallet, JsonRpcProvider } from 'ethers'; 
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
 import logger from './logger';
 import { NonceManager } from './NonceManager';
 import { RawMEVOpportunity } from './types';
 import { config } from './config'; 
 
+// Use 'ethers' only for static methods if needed, but prefer specific imports.
+import * as ethers from 'ethers'; 
+
 export class FlashbotsMEVExecutor {
-    private provider: ethers.JsonRpcProvider;
-    private wallet: ethers.Wallet;
+    // Specify the imported Provider class
+    private provider: JsonRpcProvider; 
+    private wallet: Wallet;
     private flashbotsProvider: FlashbotsBundleProvider | null = null;
     private nonceManager: NonceManager;
     private uniswapRouter: string;
@@ -17,13 +22,13 @@ export class FlashbotsMEVExecutor {
     constructor(
         rpcUrl: string,
         privateKey: string,
-        helperContract: string, // Removed Flashbots Signer Key from constructor
+        helperContract: string,
         uniswapRouter: string,
         wethAddress: string
     ) {
-        // Initializes the standard Ethers Provider
-        this.provider = new ethers.JsonRpcProvider(rpcUrl); 
-        this.wallet = new ethers.Wallet(privateKey, this.provider);
+        // Use the imported class directly
+        this.provider = new JsonRpcProvider(rpcUrl); 
+        this.wallet = new Wallet(privateKey, this.provider);
         this.uniswapRouter = uniswapRouter;
         this.nonceManager = new NonceManager(this.provider, this.wallet.address);
     }
@@ -31,17 +36,16 @@ export class FlashbotsMEVExecutor {
     async initialize(): Promise<void> {
         logger.info('Initializing Flashbots executor...');
         try {
-            // 1. Create the dedicated signer for Flashbots using the key from config
-            const authSigner = new ethers.Wallet(
+            // Use the imported Wallet class
+            const authSigner = new Wallet(
                 config.flashbots.relaySignerKey,
-                this.provider // Use the standard RPC provider for context
+                this.provider
             );
 
-            // 2. CRITICAL FIX: Correct parameter sequence for Flashbots initialization
             this.flashbotsProvider = await FlashbotsBundleProvider.create(
-                this.provider,                 // <-- 1. Standard Ethers Provider (for network detection)
-                authSigner,                    // <-- 2. Flashbots Auth Signer
-                config.flashbots.relayUrl      // <-- 3. Flashbots Relay URL (https://relay.flashbots.net)
+                this.provider,                 
+                authSigner,                    
+                config.flashbots.relayUrl      
             );
             
             await this.nonceManager.initialize();
@@ -62,7 +66,8 @@ export class FlashbotsMEVExecutor {
         try {
             const [frontRunNonce, backRunNonce] = this.nonceManager.getNextNoncePair();
             const bundle = []; 
-            const blockNumber = await this.provider.getBlockNumber();
+            // Use instance method getBlockNumber
+            const blockNumber = await this.provider.getBlockNumber(); 
             const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
 
             if ('error' in bundleSubmission) {
