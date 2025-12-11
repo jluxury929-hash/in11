@@ -1,13 +1,14 @@
-// src/engine/ProductionMEVBot.ts
+// ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
 import { ethers } from 'ethers'; 
-import { apiServer } from '../api/APIServer'; // Corrected path (src/engine/ -> src/api/)
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // Corrected path (sibling file)
-import { MempoolMonitor } from './MempoolMonitor'; // Corrected path (sibling file)
-import logger from '../utils/logger'; // Corrected path (src/engine/ -> src/utils/)
-import { config } from '../config'; // Corrected path (src/engine/ -> src/)
-import { RawMEVOpportunity } from '../types'; // Corrected path (src/engine/ -> src/)
+import { apiServer } from './APIServer'; // FIX: Removed '../api/'
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // FIX: Correct sibling import
+import { MempoolMonitor } from './MempoolMonitor'; // FIX: Correct sibling import
+import logger from './utils/logger'; // FIX: Removed '../utils/'
+import { config } from './config'; // FIX: Removed '../config'
+import { RawMEVOpportunity } from './types'; // FIX: Removed '../types'
 
+//
 export class ProductionMEVBot {
     private httpProvider: ethers.JsonRpcProvider | null = null;
     private wallet: ethers.Wallet | null = null;
