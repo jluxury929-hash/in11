@@ -1,8 +1,8 @@
 // ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
-import { Wallet, JsonRpcProvider } from 'ethers'; 
-import * as ethers from 'ethers'; // Keep for utility access like parseEther/formatEther in v6
-import { formatEther, parseEther } from 'ethers/lib/utils'; // Ethers v5 utility imports
+import { Wallet } from 'ethers'; 
+import { JsonRpcProvider } from '@ethersproject/providers'; // Explicit provider import
+import { formatEther, parseEther } from '@ethersproject/units'; // Explicit utility import
 import { apiServer } from './APIServer';
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
 import { MempoolMonitor } from './MempoolMonitor';
