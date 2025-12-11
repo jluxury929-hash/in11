@@ -2,11 +2,10 @@
 
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
-import logger from './utils/logger'; // FIX: Removed '../utils/'
-import { NonceManager } from './NonceManager'; // FIX: Correct sibling import
-import { RawMEVOpportunity } from './types'; // FIX: Removed '../types'
+import logger from './logger'; // FIX: Direct sibling import
+import { NonceManager } from './NonceManager'; // FIX: Direct sibling import
+import { RawMEVOpportunity } from './types'; // FIX: Direct sibling import
 
-//
 export class FlashbotsMEVExecutor {
     private provider: ethers.JsonRpcProvider;
     private wallet: ethers.Wallet;
@@ -58,7 +57,7 @@ export class FlashbotsMEVExecutor {
             const blockNumber = await this.provider.getBlockNumber();
             const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
 
-            // FIX for TS2339: Property 'wait' does not exist on type 'FlashbotsTransaction'.
+            // CRITICAL FIX: Ensures the TS2339 'wait' error is resolved
             if ('error' in bundleSubmission) {
                 logger.error('Flashbots submission failed:', (bundleSubmission.error as any).message);
                 await this.nonceManager.handleBundleFailure();
