@@ -1,98 +1,93 @@
-import { providers, Wallet } from "ethers";
-import { FlashbotsBundleProvider } from "@flashbots/ethers-provider-bundle";
-import { TransactionResponse } from "@ethersproject/providers";
+// FlashbotsMEVExecutor.ts (IN ROOT DIRECTORY)
 
-// Interfaces defined for clarity
-interface FlashbotsConfig {
-    relayUrl: string;
-    relaySignerKey: string;
-}
-
-interface ExecutorConfig {
-    rpcUrl: string;       // HTTPS URL
-    rpcWssUrl: string;    // WSS URL
-    walletPrivateKey: string;
-    flashbots: FlashbotsConfig;
-}
+import { ethers } from 'ethers';
+import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
+import logger from './logger';
+import { NonceManager } from './NonceManager';
+import { RawMEVOpportunity } from './types';
+import { config } from './config'; 
 
 export class FlashbotsMEVExecutor {
-    private provider: providers.JsonRpcProvider;
-    private wssProvider: providers.WebSocketProvider;
-    private wallet: Wallet;
-    private flashbotsProvider: FlashbotsBundleProvider | undefined;
-    private nonce: number | undefined;
+    private provider: ethers.JsonRpcProvider;
+    private wallet: ethers.Wallet;
+    private flashbotsProvider: FlashbotsBundleProvider | null = null;
+    private nonceManager: NonceManager;
+    private uniswapRouter: string;
 
-    constructor(private config: ExecutorConfig) {
-        // HTTP Provider (Used for read/write and Flashbots submission)
-        this.provider = new providers.JsonRpcProvider(config.rpcUrl, 1);
-        
-        // WSS Provider (Used for real-time monitoring of the mempool)
-        this.wssProvider = new providers.WebSocketProvider(config.rpcWssUrl, 1);
-
-        this.wallet = new Wallet(config.walletPrivateKey, this.provider);
+    constructor(
+        rpcUrl: string,
+        privateKey: string,
+        helperContract: string, // Removed Flashbots Signer Key from constructor
+        uniswapRouter: string,
+        wethAddress: string
+    ) {
+        // Initializes the standard Ethers Provider
+        this.provider = new ethers.JsonRpcProvider(rpcUrl); 
+        this.wallet = new ethers.Wallet(privateKey, this.provider);
+        this.uniswapRouter = uniswapRouter;
+        this.nonceManager = new NonceManager(this.provider, this.wallet.address);
     }
 
-    public async initialize() {
-        console.log(`[INFO] Wallet Address: ${this.wallet.address}`);
-        // Confirms successful connection to the HTTP RPC
-        await this.provider.getBlockNumber(); 
-        console.log("[INFO] Successful connection to RPC provider.");
+    async initialize(): Promise<void> {
+        logger.info('Initializing Flashbots executor...');
+        try {
+            // 1. Create the dedicated signer for Flashbots using the key from config
+            const authSigner = new ethers.Wallet(
+                config.flashbots.relaySignerKey,
+                this.provider // Use the standard RPC provider for context
+            );
 
-        console.log("[INFO] Initializing Flashbots executor...");
-        
-        const authSigner = new Wallet(this.config.flashbots.relaySignerKey, this.provider);
-        
-        // Explicitly passing "mainnet" to prevent 401 Unauthorized errors
-        this.flashbotsProvider = await FlashbotsBundleProvider.create(
-            this.provider,                 
-            authSigner,                    
-            this.config.flashbots.relayUrl,
-            "mainnet" 
-        );
-
-        this.nonce = await this.provider.getTransactionCount(this.wallet.address);
-        console.log(`[INFO] Initialized nonce to ${this.nonce}`);
-        
-        console.log("[INFO] Flashbots executor ready.");
-    }
-
-    public async startMonitoring() {
-        if (!this.flashbotsProvider) {
-            throw new Error("Flashbots executor not initialized.");
-        }
-        console.log("[INFO] [STEP 3] Full system operational. Monitoring mempool...");
-
-        // Start listening to pending transactions via the WSS connection
-        this.wssProvider.on('pending', async (txHash: string) => {
-            console.log(`[MEMPOOL] Detected pending transaction: ${txHash}`);
+            // 2. CRITICAL FIX: Correct parameter sequence for Flashbots initialization
+            this.flashbotsProvider = await FlashbotsBundleProvider.create(
+                this.provider,                 // <-- 1. Standard Ethers Provider (for network detection)
+                authSigner,                    // <-- 2. Flashbots Auth Signer
+                config.flashbots.relayUrl      // <-- 3. Flashbots Relay URL (https://relay.flashbots.net)
+            );
             
-            // In a real bot, the logic to fetch and process the transaction would go here
-            // const tx = await this.wssProvider.getTransaction(txHash);
-            // this.executeSandwich(tx);
-        });
+            await this.nonceManager.initialize();
+            logger.info('Flashbots executor ready.'); 
 
-        this.wssProvider.on('error', (error) => {
-            console.error('[WSS ERROR] WebSocket Provider Encountered an Error:', error);
-            // Crucial: implement logic to gracefully reconnect to the WSS endpoint here.
-        });
-
-        // Health check logs to confirm the process is still active
-        let healthCheckCount = 0;
-        setInterval(() => {
-            healthCheckCount++;
-            console.log(`[MONITOR] Mempool monitoring is alive. Check #${healthCheckCount}`);
-        }, 10000); 
+        } catch (error: any) {
+            logger.error('Flashbots initialization failed:', error);
+            throw error;
+        }
     }
     
-    // Placeholder methods to satisfy calls from ProductionMEVBot.ts.
-    public async executeSandwich(targetTx: any): Promise<void> {
-        if (!this.flashbotsProvider) throw new Error("Executor not ready.");
-        console.log(`[LOGIC] Executing sandwich on transaction: ${targetTx.hash}`);
+    async executeSandwich(opportunity: RawMEVOpportunity): Promise<boolean> {
+        if (!this.flashbotsProvider) {
+            logger.error('Flashbots provider not initialized');
+            return false;
+        }
+
+        try {
+            const [frontRunNonce, backRunNonce] = this.nonceManager.getNextNoncePair();
+            const bundle = []; 
+            const blockNumber = await this.provider.getBlockNumber();
+            const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
+
+            if ('error' in bundleSubmission) {
+                logger.error('Flashbots submission failed:', (bundleSubmission.error as any).message);
+                await this.nonceManager.handleBundleFailure();
+                return false;
+            }
+
+            const waitResponse = await bundleSubmission.wait(); 
+
+            if (waitResponse === 0) {
+                this.nonceManager.confirmBundle(frontRunNonce, backRunNonce);
+                return true;
+            } else {
+                await this.nonceManager.handleBundleFailure();
+                return false;
+            }
+        } catch (error: any) {
+            logger.error('Sandwich execution failed:', error);
+            await this.nonceManager.handleBundleFailure();
+            return false;
+        }
     }
 
-    public async periodicResync(): Promise<void> {
-        if (!this.provider) throw new Error("Provider not connected.");
-        this.nonce = await this.provider.getTransactionCount(this.wallet.address);
-        console.log(`[INFO] Resync complete. Current nonce: ${this.nonce}`);
+    async periodicResync(): Promise<void> {
+        await this.nonceManager.resyncIfNeeded();
     }
 }
