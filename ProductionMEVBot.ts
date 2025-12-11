@@ -78,37 +78,37 @@ export class ProductionMEVBot {
         }
     }
 
-    // FIX: Simplified and robust listener attachment
+    // FIX: Simplified listener attachment for robustness
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
+        // 1. Error handler first (CRITICAL for stability)
         this.wsProvider.on('error', (error: Error) => {
             logger.error(`[WSS] Provider Event Error: ${error.message}`);
         });
 
+        // 2. Open handler
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
         });
         
-        // Attach the pending listener directly
+        // 3. Pending listener (the source of the likely crash)
         this.wsProvider.on('pending', this.handlePendingTransaction.bind(this));
     }
 
-    // FIX: Added try...catch block to prevent runtime crashes
+    // FIX: Added try...catch block to handle errors in processing logic
     private handlePendingTransaction(txHash: string): void {
         try {
-            // --- YOUR CORE MEV LOGIC GOES HERE ---
-            // If this section is empty, this error might indicate an invalid WSS URL 
-            // is still crashing the provider externally.
+            // If this block is empty, the error might be external (bad WSS URL)
+            // If it contains logic, it MUST be error-free or wrapped.
             logger.debug(`[Pending TX] Received hash: ${txHash}. Processing...`);
-
-            // Example of what should be here (but requires implementation):
-            // const tx = this.httpProvider.getTransaction(txHash);
-            // if (!tx) return;
-            // this.executor.attemptArbitrage(tx);
+            
+            // NOTE: If you have logic here that is synchronous and fails, 
+            // the logger.debug call should reveal that. 
             
         } catch (error) {
-            // CRITICAL: Catches any synchronous error from your processing logic.
+            // CRITICAL: Catches any synchronous error from your processing logic
+            // and logs it instead of crashing the main Node.js process.
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
