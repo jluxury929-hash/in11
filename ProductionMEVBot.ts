@@ -1,37 +1,131 @@
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
-import logger from './logger'; 
+// ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
-// --- Environment Variables (Read from process.env) ---
-const ETHEREUM_RPC_HTTP = process.env.ETHEREUM_RPC_HTTP as string;
-const ETHEREUM_RPC_WSS = process.env.ETHEREUM_RPC_WSS as string; // <-- NEW WSS VARIABLE
-const WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY as string;
-const FLASHBOTS_RELAY_URL = process.env.FLASHBOTS_RELAY_URL as string;
-const FLASHBOTS_RELAY_SIGNER_KEY = process.env.FLASHBOTS_RELAY_SIGNER_KEY as string;
+import { ethers } from 'ethers'; 
+import { apiServer } from './APIServer';
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
+import { MempoolMonitor } from './MempoolMonitor';
+import logger from './logger';
+import { config } from './config';
+import { RawMEVOpportunity } from './types';
 
-// Exported class structure to satisfy new ProductionMEVBot() call in index.ts
 export class ProductionMEVBot {
-    private executor: FlashbotsMEVExecutor;
+    private httpProvider: ethers.JsonRpcProvider | null = null;
+    private wallet: ethers.Wallet | null = null;
+    private executor: FlashbotsMEVExecutor | null = null;
+    private mempool: MempoolMonitor | null = null;
+    private isRunning: boolean = false;
 
-    constructor() {
-        // Constructor now receives all necessary config parameters
-        this.executor = new FlashbotsMEVExecutor({
-            rpcUrl: ETHEREUM_RPC_HTTP,
-            rpcWssUrl: ETHEREUM_RPC_WSS, // <-- WSS passed here
-            walletPrivateKey: WALLET_PRIVATE_KEY,
-            flashbots: {
-                relayUrl: FLASHBOTS_RELAY_URL,
-                relaySignerKey: FLASHBOTS_RELAY_SIGNER_KEY,
+    constructor() {} 
+
+    async initialize(): Promise<void> {
+        try {
+            this.httpProvider = new ethers.JsonRpcProvider(config.ethereum.rpcHttp);
+            await this.httpProvider.getNetwork();
+            logger.info('Successful connection to RPC provider.');
+
+            if (config.wallet.privateKey) {
+                this.wallet = new ethers.Wallet(config.wallet.privateKey, this.httpProvider);
+                logger.info(`Wallet Address: ${this.wallet.address}`);
+
+                if (config.flashbots.relaySignerKey && config.mev.helperContract) {
+                    this.executor = new FlashbotsMEVExecutor(
+                        config.ethereum.rpcHttp,
+                        config.wallet.privateKey,
+                        // flashbotsSignerKey REMOVED from the constructor call
+                        config.mev.helperContract,
+                        config.mev.uniswapRouter,
+                        config.mev.wethAddress
+                    );
+                    
+                    await this.executor.initialize(); 
+                    
+                    this.mempool = new MempoolMonitor(
+                        config.ethereum.rpcWss,
+                        config.mev.uniswapRouter,
+                        config.trading.minTradeValueEth
+                    );
+                } else {
+                    logger.warn('Flashbots or Helper Contract missing. Trading is disabled.');
+                }
+            } else {
+                logger.warn('No wallet configured. Trading disabled.');
+            }
+        } catch (error: any) {
+            logger.error('Initialization error (CRITICAL - check RPC/Keys):', error);
+            throw error; 
+        }
+    }
+
+    async startMempoolMonitoring(): Promise<void> {
+        if (!this.wallet || !this.httpProvider || !this.mempool || !this.executor) {
+             logger.warn('MEV Bot setup incomplete. Monitoring loop cannot start.');
+             return;
+        }
+
+        this.isRunning = true;
+        
+        await this.checkBalance();
+        setInterval(() => this.checkBalance(), config.trading.checkBalanceInterval);
+
+        await this.mempool.start(async (opp: RawMEVOpportunity) => {
+            logger.info(`MEV Opportunity: ${opp.type}`);
+            if (this.executor) {
+                const success = await this.executor.executeSandwich(opp);
+                if (success) {
+                    logger.info('PROFIT!');
+                    await this.withdrawProfits();
+                }
             }
         });
-        logger.info('Bot instance created and configured.');
+
+        setInterval(() => {
+            if (this.executor) this.executor.periodicResync();
+        }, 30000);
+        
+        logger.info('[STEP 3] Full system operational. Monitoring mempool...');
+    }
+    
+    async checkBalance(): Promise<boolean> {
+        if (!this.wallet || !this.httpProvider) return false;
+        try {
+            const balance = await this.httpProvider.getBalance(this.wallet.address);
+            const balanceEth = parseFloat(ethers.formatEther(balance));
+            logger.info(`Balance: ${balanceEth.toFixed(6)} ETH`);
+            return balanceEth >= config.wallet.minEthBalance;
+        } catch (error: any) {
+            logger.error('Balance check failed:', error.message);
+            return false;
+        }
     }
 
-    public async initialize() {
-        await this.executor.initialize();
-        logger.info('Bot initialized successfully.');
+    async withdrawProfits(): Promise<void> {
+        if (!config.wallet.profitAddress || !this.wallet || !this.httpProvider) return;
+        try {
+            const balance = await this.httpProvider.getBalance(this.wallet.address);
+            const balanceEth = parseFloat(ethers.formatEther(balance));
+            const profitAmount = balanceEth - config.wallet.minEthBalance - config.wallet.gasReserveEth;
+
+            if (profitAmount > 0.001) {
+                logger.info(`Withdrawing ${profitAmount.toFixed(6)} ETH`);
+                const tx = await this.wallet.sendTransaction({
+                    to: config.wallet.profitAddress,
+                    value: ethers.parseEther(profitAmount.toFixed(18))
+                });
+                await tx.wait();
+                logger.info(`Withdrawal: ${tx.hash}`);
+            }
+        } catch (error: any) {
+            logger.error('Withdrawal failed:', error);
+        }
     }
 
-    public async startMempoolMonitoring() {
-        await this.executor.startMonitoring();
+    async stop(): Promise<void> {
+        if (!this.isRunning) return;
+        logger.info('Stopping...');
+        if (this.mempool) await this.mempool.stop();
+        (apiServer as any).stop(); 
+        if (this.httpProvider) (this.httpProvider as any).destroy();
+        this.isRunning = false;
+        logger.info('Stopped');
     }
 }
