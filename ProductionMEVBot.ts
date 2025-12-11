@@ -31,7 +31,6 @@ export class ProductionMEVBot {
                     this.executor = new FlashbotsMEVExecutor(
                         config.ethereum.rpcHttp,
                         config.wallet.privateKey,
-                        // REMOVED flashbotsSignerKey here (it's accessed via config inside executor)
                         config.mev.helperContract,
                         config.mev.uniswapRouter,
                         config.mev.wethAddress
