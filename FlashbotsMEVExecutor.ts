@@ -1,4 +1,4 @@
-// FlashbotsMEVExecutor.ts (FINAL FIXES)
+// FlashbotsMEVExecutor.ts (FINAL FIXED VERSION)
 
 import { 
     ethers, 
@@ -8,7 +8,6 @@ import {
 import { 
     FlashbotsBundleProvider, 
     FlashbotsBundleRawTransaction, 
-    FlashbotsBundleTransaction, 
     FlashbotsTransactionResponse
 } from '@flashbots/ethers-provider-bundle';
 
@@ -21,7 +20,7 @@ export class FlashbotsMEVExecutor {
     private provider: ethers.providers.JsonRpcProvider; 
     private flashbotsProvider: FlashbotsBundleProvider;
 
-    // FIX A: Private constructor to enforce use of the async factory method
+    // Private constructor enforces async instantiation via create()
     private constructor(
         provider: ethers.providers.JsonRpcProvider, 
         wallet: Wallet, 
@@ -36,7 +35,7 @@ export class FlashbotsMEVExecutor {
         logger.info(`[Executor] Initialized Wallet: ${this.wallet.address}`);
     }
 
-    // FIX A: Static async factory method to handle FlashbotsProvider.create() await (TS2740)
+    // Static async factory method to handle asynchronous initialization
     public static async create(
         privateKey: string, 
         authSignerKey: string, 
@@ -70,17 +69,17 @@ export class FlashbotsMEVExecutor {
     public async sendBundle(signedTxs: string[], targetBlock: number) {
         logger.debug(`Attempting to send bundle targeting block ${targetBlock}`);
         
-        // FIX B: Reformat raw strings into the required Flashbots object structure (TS2345)
+        // Correctly format raw strings into the required Flashbots object structure
         const flashbotsTransactions: FlashbotsBundleRawTransaction[] = signedTxs.map(signedTransaction => ({
             signedTransaction
         }));
 
         const bundleSubmission: FlashbotsTransactionResponse = await this.flashbotsProvider.sendBundle(
-            flashbotsTransactions, // Use the corrected array format
+            flashbotsTransactions,
             targetBlock
         );
 
-        // FIX C: Check for submission failure before accessing bundleHash (TS2339)
+        // Check for submission failure before accessing bundleHash
         if ('error' in bundleSubmission) {
             logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`);
             return bundleSubmission;
