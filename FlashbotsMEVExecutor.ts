@@ -85,9 +85,9 @@ export class FlashbotsMEVExecutor {
         // to resolve TS2739 compilation error.
         if ('error' in bundleSubmission) {
             logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`); 
-            return bundleSubmission as FlashbotsTransactionResponse; // <-- FIX: Explicit type cast
-        }
-
+            // NEW FIX: Cast through 'unknown' first to resolve TS2352
+return bundleSubmission as unknown as FlashbotsTransactionResponse;
+            
         // TypeScript correctly knows this is a successful FlashbotsTransaction
         logger.info(`Bundle submission successful: ${bundleSubmission.bundleHash}`);
         return bundleSubmission; 
