@@ -1,51 +1,46 @@
-import { ethers } from 'ethers';
+// NonceManager.ts (IN ROOT DIRECTORY)
+
+import { Wallet, JsonRpcProvider } from 'ethers';
 import logger from './logger';
+// ... other imports
 
 export class NonceManager {
-    private provider: ethers.JsonRpcProvider;
-    private address: string;
-    private currentNonce: number;
-    private pendingNonces: Set<number>;
-
-    constructor(provider: ethers.JsonRpcProvider, address: string) {
+    private provider: JsonRpcProvider; // Use imported class
+    private walletAddress: string;
+    private currentNonce: number = 0;
+    
+    constructor(provider: JsonRpcProvider, walletAddress: string) { // Use imported class
         this.provider = provider;
-        this.address = address;
-        this.currentNonce = 0;
-        this.pendingNonces = new Set();
+        this.walletAddress = walletAddress;
     }
 
     async initialize(): Promise<void> {
-        const blockchainNonce = await this.provider.getTransactionCount(this.address, 'pending');
-        this.currentNonce = blockchainNonce;
-        this.pendingNonces.clear();
-        logger.info(`NonceManager initialized - Starting nonce: ${this.currentNonce}`);
+        this.currentNonce = await this.provider.getTransactionCount(this.walletAddress, 'latest');
+        logger.info(`Initialized nonce to ${this.currentNonce}`);
     }
-
+    
+    // ... rest of the class
     getNextNoncePair(): [number, number] {
-        const frontRunNonce = this.currentNonce;
-        const backRunNonce = this.currentNonce + 1;
-        this.pendingNonces.add(frontRunNonce);
-        this.pendingNonces.add(backRunNonce);
-        this.currentNonce += 2;
-        return [frontRunNonce, backRunNonce];
+        const pair: [number, number] = [this.currentNonce, this.currentNonce + 1];
+        return pair;
     }
 
-    confirmBundle(frontRunNonce: number, backRunNonce: number): void {
-        this.pendingNonces.delete(frontRunNonce);
-        this.pendingNonces.delete(backRunNonce);
+    confirmBundle(frontRunNonce: number, backRunNonce: number) {
+        // Confirm successful execution moves the nonce forward by 2
+        this.currentNonce = backRunNonce + 1; 
+        logger.info(`Nonce confirmed, next nonce is ${this.currentNonce}`);
     }
 
-    async handleBundleFailure(): Promise<void> {
-        this.currentNonce = await this.provider.getTransactionCount(this.address, 'latest');
-        this.pendingNonces.clear();
+    async handleBundleFailure() {
+        // On failure, resync immediately to ensure nonce is correct
+        await this.resyncIfNeeded();
     }
 
     async resyncIfNeeded(): Promise<void> {
-        if (this.pendingNonces.size > 10) {
-            const blockchainNonce = await this.provider.getTransactionCount(this.address, 'pending');
-            this.currentNonce = blockchainNonce;
-            this.pendingNonces.clear();
+        const latestNonce = await this.provider.getTransactionCount(this.walletAddress, 'latest');
+        if (latestNonce > this.currentNonce) {
+            logger.warn(`Nonce mismatch detected. Resyncing from ${this.currentNonce} to ${latestNonce}`);
+            this.currentNonce = latestNonce;
         }
     }
 }
-
