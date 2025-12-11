@@ -5,7 +5,7 @@ import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
 import logger from './logger';
 import { NonceManager } from './NonceManager';
 import { RawMEVOpportunity } from './types';
-import { config } from './config'; // Using config directly
+import { config } from './config'; 
 
 export class FlashbotsMEVExecutor {
     private provider: ethers.JsonRpcProvider;
@@ -15,15 +15,12 @@ export class FlashbotsMEVExecutor {
     private uniswapRouter: string;
 
     constructor(
-        // Constructor arguments reflect necessary runtime values
         rpcUrl: string,
         privateKey: string,
-        // flashbotsSignerKey is NOT passed here; we get it from config in initialize()
         helperContract: string,
         uniswapRouter: string,
         wethAddress: string
     ) {
-        // Initializes the standard Ethers Provider
         this.provider = new ethers.JsonRpcProvider(rpcUrl); 
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.uniswapRouter = uniswapRouter;
@@ -33,21 +30,22 @@ export class FlashbotsMEVExecutor {
     async initialize(): Promise<void> {
         logger.info('Initializing Flashbots executor...');
         try {
-            // 1. Create the dedicated signer for Flashbots using the key from config
+            // CRITICAL DIAGNOSTIC FIX: Hardcode the correct URL to bypass config reading errors.
+            const FLASHBOTS_RELAY_URL = "https://relay.flashbots.net"; 
+
             const authSigner = new ethers.Wallet(
                 config.flashbots.relaySignerKey,
-                this.provider // Use the standard RPC provider for context
+                this.provider
             );
 
-            // 2. CRITICAL FIX: Pass the standard provider, authSigner, and the Flashbots URL.
             this.flashbotsProvider = await FlashbotsBundleProvider.create(
-                this.provider,                 // <-- 1. Standard Ethers Provider (for network info)
+                this.provider,                 // <-- 1. Standard Ethers Provider (working)
                 authSigner,                    // <-- 2. Flashbots Auth Signer
-                config.flashbots.relayUrl      // <-- 3. Flashbots Relay URL (for bundle submission)
+                FLASHBOTS_RELAY_URL            // <-- 3. Using HARDCODED URL
             );
             
             await this.nonceManager.initialize();
-            logger.info('Flashbots executor ready.'); // Success log
+            logger.info('Flashbots executor ready.'); 
 
         } catch (error: any) {
             logger.error('Flashbots initialization failed:', error);
@@ -55,7 +53,8 @@ export class FlashbotsMEVExecutor {
         }
     }
     
-    // The rest of the methods remain unchanged as they were already correct.
+    // ... (rest of the class methods executeSandwich and periodicResync remain unchanged)
+    
     async executeSandwich(opportunity: RawMEVOpportunity): Promise<boolean> {
         if (!this.flashbotsProvider) {
             logger.error('Flashbots provider not initialized');
@@ -64,9 +63,7 @@ export class FlashbotsMEVExecutor {
 
         try {
             const [frontRunNonce, backRunNonce] = this.nonceManager.getNextNoncePair();
-
             const bundle = []; 
-
             const blockNumber = await this.provider.getBlockNumber();
             const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
 
@@ -76,7 +73,6 @@ export class FlashbotsMEVExecutor {
                 return false;
             }
 
-            // Fix applied previously: wait() now works correctly
             const waitResponse = await bundleSubmission.wait(); 
 
             if (waitResponse === 0) {
