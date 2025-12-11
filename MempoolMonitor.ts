@@ -1,22 +1,27 @@
-// MempoolMonitor.ts (IN ROOT DIRECTORY)
+// MempoolMonitor.ts (IN ROOT DIRECTORY - Logic assumed based on context)
 
-// CORRECT V5/V6 compatible imports
-import { WebSocketProvider, JsonRpcProvider } from '@ethersproject/providers'; // Explicit provider import
-import { Interface } from '@ethersproject/abi'; // Explicit Interface import
-import { formatEther } from '@ethersproject/units'; // Explicit utility import
+import { WebSocketProvider } from '@ethersproject/providers'; // FIX: Ethers v5 provider import
+import { Interface } from '@ethersproject/abi'; // FIX: Ethers v5 ABI import
+import { formatEther } from '@ethersproject/units'; // FIX: Ethers v5 utility import
 import logger from './logger';
-// ... other imports
-import { config } from './config';
 import { RawMEVOpportunity } from './types';
+
+// Assuming ABI is defined elsewhere
+// const UNISWAP_ABI: any[] = [...];
 
 export class MempoolMonitor {
     private wssProvider: WebSocketProvider;
     private uniswapRouterAddress: string;
     private minTradeValueEth: number;
-    private uniswapInterface: Interface;
+    // private uniswapInterface: Interface; // If Interface isn't used, you can remove it.
 
-    // ... constructor and start methods ...
-
+    constructor(wssUrl: string, uniswapRouter: string, minTradeValueEth: number) {
+        this.wssProvider = new WebSocketProvider(wssUrl);
+        this.uniswapRouterAddress = uniswapRouter;
+        this.minTradeValueEth = minTradeValueEth;
+        // this.uniswapInterface = new Interface(UNISWAP_ABI); 
+    }
+    
     async start(opportunityCallback: (opp: RawMEVOpportunity) => Promise<void>): Promise<void> {
         logger.info(`Starting mempool monitoring on ${this.uniswapRouterAddress}`);
 
@@ -25,10 +30,11 @@ export class MempoolMonitor {
 
             if (tx && tx.to && tx.to.toLowerCase() === this.uniswapRouterAddress.toLowerCase()) {
                 
+                // Using imported utility
                 const valueEth = parseFloat(formatEther(tx.value));
                 
                 if (valueEth >= this.minTradeValueEth) {
-                    // FIX TS2820: Change "Sandwich" to the correct lowercase type 'sandwich'
+                    // FIX: Using correct lowercase type 'sandwich' and required 'hash'
                     const opportunity: RawMEVOpportunity = { type: 'sandwich', hash: tx.hash, valueEth }; 
                     await opportunityCallback(opportunity);
                 }
@@ -36,7 +42,6 @@ export class MempoolMonitor {
         });
     }
 
-    // ... rest of the class
     async stop(): Promise<void> {
         this.wssProvider.removeAllListeners();
         logger.info('Mempool monitoring stopped.');
