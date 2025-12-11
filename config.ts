@@ -9,7 +9,6 @@ function getRequiredEnv(key: string, optional: boolean = false): string {
         if (!optional) {
             console.error(`\n\n======================================================`);
             console.error(`🚨 FATAL CONFIG ERROR: Missing required environment variable: ${key}`);
-            console.error(`Please set this in your Railway Variables.`);
             console.error(`======================================================\n`);
             throw new Error(`Missing required environment variable: ${key}`);
         }
