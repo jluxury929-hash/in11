@@ -1,12 +1,12 @@
 // ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
 import { ethers } from 'ethers'; 
-import { apiServer } from './APIServer'; // FIX: Direct sibling import
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // FIX: Direct sibling import
-import { MempoolMonitor } from './MempoolMonitor'; // FIX: Direct sibling import
-import logger from './logger'; // FIX: Direct sibling import
-import { config } from './config'; // FIX: Direct sibling import
-import { RawMEVOpportunity } from './types'; // FIX: Direct sibling import
+import { apiServer } from './APIServer';
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
+import { MempoolMonitor } from './MempoolMonitor';
+import logger from './logger';
+import { config } from './config';
+import { RawMEVOpportunity } from './types';
 
 export class ProductionMEVBot {
     private httpProvider: ethers.JsonRpcProvider | null = null;
@@ -36,7 +36,9 @@ export class ProductionMEVBot {
                         config.mev.uniswapRouter,
                         config.mev.wethAddress
                     );
-                    await this.executor.initialize();
+                    
+                    // The fix is encapsulated within the executor's initialize method
+                    await this.executor.initialize(); 
                     
                     this.mempool = new MempoolMonitor(
                         config.ethereum.rpcWss,
@@ -80,8 +82,12 @@ export class ProductionMEVBot {
         setInterval(() => {
             if (this.executor) this.executor.periodicResync();
         }, 30000);
+        
+        logger.info('[STEP 3] Full system operational. Monitoring mempool...'); // Final Success Log
     }
     
+    // ... (rest of checkBalance and withdrawProfits methods remain unchanged)
+
     async checkBalance(): Promise<boolean> {
         if (!this.wallet || !this.httpProvider) return false;
         try {
@@ -120,7 +126,6 @@ export class ProductionMEVBot {
         if (!this.isRunning) return;
         logger.info('Stopping...');
         if (this.mempool) await this.mempool.stop();
-        // Note: Assuming apiServer has a defined stop method
         (apiServer as any).stop(); 
         if (this.httpProvider) (this.httpProvider as any).destroy();
         this.isRunning = false;
