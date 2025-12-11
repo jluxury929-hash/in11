@@ -1,9 +1,8 @@
 // APIServer.ts
-// FIX: Change import to correctly handle the default callable export for Express
 import express, { Request, Response } from 'express'; 
 import { logger } from './logger';
 
-const app = express(); // This is now correctly calling the default export function
+const app = express();
 const PORT = process.env.API_PORT || 8080;
 
 export class APIServer {
