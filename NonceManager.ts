@@ -1,47 +1,34 @@
-// NonceManager.ts (IN ROOT DIRECTORY)
-
-import { Wallet } from 'ethers';
-import { JsonRpcProvider } from '@ethersproject/providers'; // Explicit provider import
-import logger from './logger';
-// ... other imports
+// NonceManager.ts
+import { ethers } from 'ethers'; 
+import { logger } from './logger'; // FIX: TS2613 corrected to named import
 
 export class NonceManager {
-    private provider: JsonRpcProvider; 
+    private provider: ethers.providers.JsonRpcProvider;
     private walletAddress: string;
     private currentNonce: number = 0;
-    
-    constructor(provider: JsonRpcProvider, walletAddress: string) { // Use imported class
+
+    constructor(provider: ethers.providers.JsonRpcProvider, walletAddress: string) {
         this.provider = provider;
         this.walletAddress = walletAddress;
+        this.fetchNonce();
     }
 
-    async initialize(): Promise<void> {
-        this.currentNonce = await this.provider.getTransactionCount(this.walletAddress, 'latest');
-        logger.info(`Initialized nonce to ${this.currentNonce}`);
-    }
-    
-    // ... rest of the class
-    getNextNoncePair(): [number, number] {
-        const pair: [number, number] = [this.currentNonce, this.currentNonce + 1];
-        return pair;
-    }
-
-    confirmBundle(frontRunNonce: number, backRunNonce: number) {
-        // Confirm successful execution moves the nonce forward by 2
-        this.currentNonce = backRunNonce + 1; 
-        logger.info(`Nonce confirmed, next nonce is ${this.currentNonce}`);
-    }
-
-    async handleBundleFailure() {
-        // On failure, resync immediately to ensure nonce is correct
-        await this.resyncIfNeeded();
-    }
-
-    async resyncIfNeeded(): Promise<void> {
-        const latestNonce = await this.provider.getTransactionCount(this.walletAddress, 'latest');
-        if (latestNonce > this.currentNonce) {
-            logger.warn(`Nonce mismatch detected. Resyncing from ${this.currentNonce} to ${latestNonce}`);
-            this.currentNonce = latestNonce;
+    private async fetchNonce() {
+        try {
+            this.currentNonce = await this.provider.getTransactionCount(this.walletAddress, 'latest');
+            logger.debug(`Initial Nonce set to: ${this.currentNonce}`);
+        } catch (error) {
+            logger.error("Failed to fetch initial nonce.", error);
         }
+    }
+
+    public getNonce(): number {
+        return this.currentNonce;
+    }
+
+    public incrementNonce(): number {
+        this.currentNonce += 1;
+        logger.debug(`Nonce incremented to: ${this.currentNonce}`);
+        return this.currentNonce;
     }
 }
