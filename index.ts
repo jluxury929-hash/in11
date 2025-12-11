@@ -1,37 +1,11 @@
-import { ethers } from 'ethers';
-
-export interface RawMEVOpportunity {
-    type: 'sandwich' | 'arbitrage' | 'liquidation';
-    targetTxHash: string;
-    targetTxRaw: string;
-    targetTxParsed: ethers.TransactionResponse;
-    tokenIn: string;
-    tokenOut: string;
-    amountIn: bigint;
-    estimatedProfitEth: string;
-}
-
-export interface BundleResult {
-    success: boolean;
-    bundleHash?: string;
-    profit?: string;
-    error?: string;
-}
-
-export interface WalletBalance {
-    address: string;
-    eth: string;
-    tokens: Record<string, string>;
-}
-
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { ethers } from 'ethers';
-import { apiServer } from './server/apiServer';
-import { FlashbotsMEVExecutor } from './mev/flashbots';
-import { MempoolMonitor } from './mev/mempool';
-import logger from './utils/logger';
+import { apiServer } from './apiserver';
+import { FlashbotsMEVExecutor } from './flashbots';
+import { MempoolMonitor } from './mempool';
+import logger from './logger';
 import { config } from './config';
 import { RawMEVOpportunity } from './types';
 
@@ -191,3 +165,4 @@ process.on('unhandledRejection', (reason) => {
 });
 
 main();
+
