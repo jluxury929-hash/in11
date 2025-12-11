@@ -31,13 +31,12 @@ export class ProductionMEVBot {
                     this.executor = new FlashbotsMEVExecutor(
                         config.ethereum.rpcHttp,
                         config.wallet.privateKey,
-                        config.flashbots.relaySignerKey,
+                        // REMOVED flashbotsSignerKey here (it's accessed via config inside executor)
                         config.mev.helperContract,
                         config.mev.uniswapRouter,
                         config.mev.wethAddress
                     );
                     
-                    // The fix is encapsulated within the executor's initialize method
                     await this.executor.initialize(); 
                     
                     this.mempool = new MempoolMonitor(
@@ -83,11 +82,9 @@ export class ProductionMEVBot {
             if (this.executor) this.executor.periodicResync();
         }, 30000);
         
-        logger.info('[STEP 3] Full system operational. Monitoring mempool...'); // Final Success Log
+        logger.info('[STEP 3] Full system operational. Monitoring mempool...');
     }
     
-    // ... (rest of checkBalance and withdrawProfits methods remain unchanged)
-
     async checkBalance(): Promise<boolean> {
         if (!this.wallet || !this.httpProvider) return false;
         try {
