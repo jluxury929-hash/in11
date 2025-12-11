@@ -1,23 +1,132 @@
-// ProductionMEVBot.ts (Updated setupWsConnectionListeners)
+// ProductionMEVBot.ts (FINAL FIXED VERSION)
 
-private setupWsConnectionListeners(): void {
-    if (!this.wsProvider) return;
+import { 
+    ethers, 
+    Wallet
+} from 'ethers';
 
-    // We must ensure the error handler is attached first
-    this.wsProvider.on('error', (error: Error) => {
-        logger.error(`[WSS] Provider Event Error: ${error.message}`);
-        // Consider destroying the provider here if the error is fatal
-    });
-    
-    this.wsProvider.on('open', () => {
-        logger.info("WSS Connection established successfully! Monitoring mempool...");
-    });
-    
-    // Attach the pending listener once the connection is open
-    this.wsProvider.on('pending', this.handlePendingTransaction.bind(this));
-    
-    this.wsProvider.on('close', (code: number, reason: string) => {
-        logger.warn(`[WSS] Connection closed. Code: ${code}, Reason: ${reason}`);
-        // Add reconnection logic here if needed
-    });
+import * as dotenv from 'dotenv';
+import { logger } from './logger';
+import { BotConfig } from './types'; 
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
+
+export class ProductionMEVBot { 
+    private signer: Wallet; 
+    private authSigner: Wallet; 
+    private httpProvider: ethers.providers.JsonRpcProvider;
+    private wsProvider: ethers.providers.WebSocketProvider | undefined;
+    private executor: FlashbotsMEVExecutor | undefined;
+    private config: BotConfig;
+
+    constructor() {
+        this.config = {
+            walletAddress: process.env.WALLET_ADDRESS || '',
+            authSignerKey: process.env.FB_REPUTATION_KEY || '',
+            minEthBalance: parseFloat(process.env.MIN_ETH_BALANCE || '0.02'), 
+            gasReserveEth: parseFloat(process.env.GAS_RESERVE_ETH || '0.01'),
+            minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || '0.05'),
+            mevHelperContractAddress: process.env.MEV_HELPER_CONTRACT_ADDRESS || '',
+            flashbotsUrl: process.env.FLASHBOTS_URL || 'https://relay.flashbots.net',
+        };
+
+        const privateKey = process.env.PRIVATE_KEY;
+        const fbReputationKey = process.env.FB_REPUTATION_KEY;
+        const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
+        
+        if (!privateKey || !fbReputationKey || !httpRpcUrl) {
+             logger.warn("Missing critical environment variables during construction. Executor initialization will fail.");
+        }
+        
+        // Use placeholder values if keys are missing to prevent constructor errors, 
+        // relying on startMonitoring/initializeExecutor to handle fatal exit.
+        this.httpProvider = new ethers.providers.JsonRpcProvider(httpRpcUrl || 'http://placeholder.local'); 
+        this.signer = new Wallet(privateKey || ethers.constants.HashZero, this.httpProvider);
+        this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
+        this.config.walletAddress = this.signer.address;
+        
+        const wssRpcUrl = process.env.ETH_WSS_URL;
+        if (wssRpcUrl) {
+            try {
+                this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
+                this.setupWsConnectionListeners();
+            } catch (error) {
+                logger.error("WebSocket Provider failed to initialize.", error);
+                this.wsProvider = undefined; 
+            }
+        }
+        logger.info("Bot configuration loaded.");
+    }
+
+    private async initializeExecutor(): Promise<void> {
+        const privateKey = process.env.PRIVATE_KEY;
+        const fbReputationKey = process.env.FB_REPUTATION_KEY;
+        const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
+        const flashbotsUrl = this.config.flashbotsUrl;
+
+        if (!privateKey || !fbReputationKey || !httpRpcUrl) {
+            return;
+        }
+
+        try {
+            this.executor = await FlashbotsMEVExecutor.create(
+                privateKey,
+                fbReputationKey,
+                httpRpcUrl,
+                flashbotsUrl
+            );
+            logger.info("Flashbots Executor initialized successfully.");
+        } catch (error) {
+            logger.fatal("Failed to initialize FlashbotsMEVExecutor.", error);
+        }
+    }
+
+    private setupWsConnectionListeners(): void {
+        if (!this.wsProvider) return;
+
+        this.wsProvider.on('error', (error: Error) => {
+            logger.error(`[WSS] Provider Event Error: ${error.message}`);
+        });
+
+        this.wsProvider.on('open', () => {
+            logger.info("WSS Connection established successfully! Monitoring mempool...");
+            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
+        });
+    }
+
+    private handlePendingTransaction(txHash: string): void {
+        // Core MEV logic for handling a new transaction in the mempool
+    }
+
+    public async startMonitoring(): Promise<void> {
+        logger.info("[STATUS] Starting bot services...");
+
+        // 1. Initialize the Asynchronous services
+        await this.initializeExecutor(); 
+        if (!this.executor) {
+            logger.fatal("Cannot start monitoring due to Executor failure. Check .env variables.");
+            return;
+        }
+
+        // 2. Check Wallet Balance
+        try {
+            const balance = await this.httpProvider.getBalance(this.config.walletAddress);
+            const formattedBalance = ethers.utils.formatEther(balance); 
+            logger.info(`[BALANCE] Current ETH Balance: ${formattedBalance} ETH`);
+
+            if (balance.lt(ethers.utils.parseEther(this.config.minEthBalance.toString()))) { 
+                logger.fatal(`Balance (${formattedBalance}) is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
+                return;
+            }
+        } catch (error) {
+            logger.fatal("Could not check balance. Check HTTP_RPC_URL.", error);
+            return;
+        }
+
+        // 3. Start Mempool Monitoring
+        if (!this.wsProvider) {
+            logger.warn("WSS Provider is not active. Cannot monitor mempool in real-time.");
+        } else {
+            logger.info("[STATUS] Monitoring fully active.");
+        }
+    }
 }
