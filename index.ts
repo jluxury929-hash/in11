@@ -1,13 +1,14 @@
-// index.ts
+// index.ts (IN ROOT DIRECTORY)
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-// CORRECTED PATHS from root
-import { apiServer } from './src/api/APIServer';
-import logger from './src/utils/logger'; 
-import { ProductionMEVBot } from './src/engine/ProductionMEVBot';
+// FIX: Import files directly by name, as they are in the root
+import { apiServer } from './APIServer'; // Changed from './src/api/APIServer'
+import logger from './utils/logger'; // Assumes you have a file named utils/logger.ts or logger.ts in root
+import { ProductionMEVBot } from './ProductionMEVBot'; // Changed from './src/engine/ProductionMEVBot'
 
+//
 async function main() {
     logger.info('='.repeat(70));
     logger.info('  MASSIVE TRADING ENGINE STARTUP SEQUENCE');
