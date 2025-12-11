@@ -3,7 +3,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-// Imports the main bot class, which is likely ProductionMEVBot
+// FIX: Import the exported class
 import { ProductionMEVBot } from './ProductionMEVBot'; 
 
 // --- Bot Startup ---
@@ -12,6 +12,7 @@ async function main() {
         console.log("[STEP 2] Initializing and Starting MEV Bot...");
         const bot = new ProductionMEVBot();
         await bot.startMonitoring();
+        // APIServer.start(); // If you want to run the API server
     } catch (error: any) {
         console.error(`[ERROR] Fatal startup failure:`);
         console.error(`[ERROR] Details: ${error.message}`);
