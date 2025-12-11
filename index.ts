@@ -19,7 +19,7 @@ async function main() {
         logger.info('[STEP 2] Initializing and Starting MEV Bot...');
         const bot = new ProductionMEVBot(); 
         await bot.initialize();
-        await bot.startMempoolMonitoring(); // <-- This line should now run the bot indefinitely.
+        await bot.startMempoolMonitoring();
 
     } catch (error: any) {
         logger.error('Fatal startup failure:', error.message);
