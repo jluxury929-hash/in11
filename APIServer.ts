@@ -1,14 +1,13 @@
 // APIServer.ts
-import * as express from 'express'; // FIX: TS2307 resolved by adding 'express' to package.json
-import { Request, Response } from 'express'; // FIX: Resolves implicit any errors
+// FIX: Change import to correctly handle the default callable export for Express
+import express, { Request, Response } from 'express'; 
 import { logger } from './logger';
 
-const app = express();
+const app = express(); // This is now correctly calling the default export function
 const PORT = process.env.API_PORT || 8080;
 
 export class APIServer {
     public static start() {
-        // FIX: Explicitly typed req and res to remove TS7006 implicit any error
         app.get('/status', (req: Request, res: Response) => { 
             res.json({ status: 'running', service: 'massive-trading-engine' });
         });
