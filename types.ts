@@ -1,17 +1,13 @@
-// types.ts (IN ROOT DIRECTORY)
+// types.ts
 
-import { TransactionResponse } from '@ethersproject/providers'; // FIX: Ethers v5 type import
-
-export type MEVOpportunityType = 'sandwich' | 'arbitrage' | 'liquidation';
-
-export interface RawMEVOpportunity {
-    type: MEVOpportunityType;
-    hash: string; // FIX: Added missing 'hash' property
-    valueEth: number;
-    // ... other properties
+export interface BotConfig {
+    walletAddress: string;
+    authSignerKey: string; 
+    minEthBalance: number;
+    gasReserveEth: number;
+    minProfitThreshold: number;
+    mevHelperContractAddress: string;
+    flashbotsUrl: string;
 }
 
-export interface BundledTransaction {
-    signedTransaction: string;
-    // transaction: TransactionResponse; 
-}
+// Add other interfaces for transactions, bundles, etc., here.
