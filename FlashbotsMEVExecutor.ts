@@ -27,18 +27,14 @@ export class FlashbotsMEVExecutor {
 
     public async initialize() {
         console.log(`[INFO] Wallet Address: ${this.wallet.address}`);
-        // Simple call to check RPC connection (fixes 403/429 errors)
         await this.provider.getBlockNumber(); 
         console.log("[INFO] Successful connection to RPC provider.");
 
         console.log("[INFO] Initializing Flashbots executor...");
         
-        // The Signer key is used ONLY for authentication and reputation
         const authSigner = new Wallet(this.config.flashbots.relaySignerKey, this.provider);
         
-        // **CRITICAL FIX for 401 UNAUTHORIZED:** // Explicitly passing "mainnet" ensures correct Chain ID (1) is used 
-        // in the cryptographic signature, preventing server rejection.
-        this.flashbotsProvider = await FlashbotsBundleProvider.create(
+        // **CRITICAL FIX for 401 UNAUTHORIZED:** this.flashbotsProvider = await FlashbotsBundleProvider.create(
             this.provider,                 
             authSigner,                    
             this.config.flashbots.relayUrl,
@@ -56,10 +52,9 @@ export class FlashbotsMEVExecutor {
             throw new Error("Flashbots executor not initialized.");
         }
         console.log("[INFO] [STEP 3] Full system operational. Monitoring mempool...");
-        // Your WSS subscription logic and main MEV loop will run here.
     }
     
-    // **FIX for TS2339:** Placeholder methods to satisfy calls from ProductionMEVBot.ts.
+    // **FIX for TS2339:** Placeholder methods to satisfy calls.
     public async executeSandwich(targetTx: any): Promise<void> {
         if (!this.flashbotsProvider) throw new Error("Executor not ready.");
         console.log(`[LOGIC] Executing sandwich on transaction: ${targetTx.hash}`);
