@@ -1,25 +1,17 @@
-import { ethers } from 'ethers';
+// types.ts (IN ROOT DIRECTORY)
+
+import { TransactionResponse } from '@ethersproject/providers'; // FIX: Ethers v5 type import
+
+export type MEVOpportunityType = 'sandwich' | 'arbitrage' | 'liquidation';
 
 export interface RawMEVOpportunity {
-    type: 'sandwich' | 'arbitrage' | 'liquidation';
-    targetTxHash: string;
-    targetTxRaw: string;
-    targetTxParsed: ethers.TransactionResponse;
-    tokenIn: string;
-    tokenOut: string;
-    amountIn: bigint;
-    estimatedProfitEth: string;
+    type: MEVOpportunityType;
+    hash: string; // FIX: Added missing 'hash' property
+    valueEth: number;
+    // ... other properties
 }
 
-export interface BundleResult {
-    success: boolean;
-    bundleHash?: string;
-    profit?: string;
-    error?: string;
-}
-
-export interface WalletBalance {
-    address: string;
-    eth: string;
-    tokens: Record<string, string>;
+export interface BundledTransaction {
+    signedTransaction: string;
+    // transaction: TransactionResponse; 
 }
