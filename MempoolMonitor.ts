@@ -1,12 +1,14 @@
 // MempoolMonitor.ts
-import { WebSocketProvider } from 'ethers';
+import { ethers } from 'ethers'; // FIX: Import global ethers for v5 syntax
 import { logger } from './logger';
 
 export class MempoolMonitor {
-    private wsProvider: WebSocketProvider;
+    // FIX: Use Ethers v5 provider type
+    private wsProvider: ethers.providers.WebSocketProvider; 
     private pendingTxHandler: (txHash: string) => void;
 
-    constructor(wsProvider: WebSocketProvider, handler: (txHash: string) => void) {
+    // FIX: Constructor uses Ethers v5 provider type
+    constructor(wsProvider: ethers.providers.WebSocketProvider, handler: (txHash: string) => void) {
         this.wsProvider = wsProvider;
         this.pendingTxHandler = handler;
         this.startMonitoring();
