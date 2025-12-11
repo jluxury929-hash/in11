@@ -3,7 +3,7 @@
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
 import logger from '../utils/logger'; // Corrected path
-import { NonceManager } from './NonceManager'; // 🚨 FIX: Corrected casing to 'NonceManager'
+import { NonceManager } from './NonceManager'; // FIX: Correct casing for Linux (NonceManager)
 import { RawMEVOpportunity } from '../types'; // Corrected path
 
 export class FlashbotsMEVExecutor {
@@ -51,22 +51,19 @@ export class FlashbotsMEVExecutor {
         try {
             const [frontRunNonce, backRunNonce] = this.nonceManager.getNextNoncePair();
 
-            const bundle = [
-                // Transactions defined here (using placeholder for brevity)
-                // ...
-            ];
+            // NOTE: Full bundle definition omitted for brevity, assuming existing logic here
+            const bundle = []; 
 
             const blockNumber = await this.provider.getBlockNumber();
             const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
 
-            // 🚨 FIX for TS2339: Ensuring the error check is present and correct
+            // FIX for TS2339: Property 'wait' does not exist on type 'FlashbotsTransaction'.
             if ('error' in bundleSubmission) {
                 logger.error('Flashbots submission failed:', (bundleSubmission.error as any).message);
                 await this.nonceManager.handleBundleFailure();
                 return false;
             }
 
-            // Line 78 in your logs is likely around here:
             const waitResponse = await bundleSubmission.wait(); 
 
             if (waitResponse === 0) {
