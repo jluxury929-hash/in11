@@ -29,29 +29,15 @@ class APIServer {
 
   private setupRoutes(): void {
     this.app.get('/', (req: Request, res: Response) => {
-      res.json({
-        name: 'Massive Trading Engine API',
-        version: '1.0.0',
-        status: 'operational',
-        timestamp: Date.now()
-      });
+      res.json({ name: 'Massive Trading Engine API', version: '1.0.0', status: 'operational', timestamp: Date.now() });
     });
 
     this.app.get('/health', (req: Request, res: Response) => {
-      res.json({
-        status: 'ok',
-        uptime: process.uptime(),
-        timestamp: Date.now()
-      });
+      res.json({ status: 'ok', uptime: process.uptime(), timestamp: Date.now() });
     });
 
     this.app.get('/api/status', (req: Request, res: Response) => {
-      res.json({
-        status: 'operational',
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        timestamp: Date.now()
-      });
+      res.json({ status: 'operational', uptime: process.uptime(), memory: process.memoryUsage(), timestamp: Date.now() });
     });
 
     this.app.post('/api/start', (req: Request, res: Response) => {
@@ -63,61 +49,32 @@ class APIServer {
     });
 
     this.app.get('/api/metrics', (req: Request, res: Response) => {
-      res.json({
-        totalTrades: 0,
-        successfulTrades: 0,
-        totalProfit: '0',
-        timestamp: Date.now()
-      });
+      res.json({ totalTrades: 0, successfulTrades: 0, totalProfit: '0', timestamp: Date.now() });
     });
 
     this.app.get('/api/strategies', (req: Request, res: Response) => {
-      res.json({
-        total: 0,
-        strategies: [],
-        timestamp: Date.now()
-      });
+      res.json({ total: 0, strategies: [], timestamp: Date.now() });
     });
 
     this.app.get('/api/prices', (req: Request, res: Response) => {
-      res.json({
-        total: 0,
-        prices: [],
-        timestamp: Date.now()
-      });
+      res.json({ total: 0, prices: [], timestamp: Date.now() });
     });
 
     this.app.get('/api/flashloans', (req: Request, res: Response) => {
-      res.json({
-        total: 0,
-        opportunities: [],
-        timestamp: Date.now()
-      });
+      res.json({ total: 0, opportunities: [], timestamp: Date.now() });
     });
 
     this.app.get('/api/wallet/balance', (req: Request, res: Response) => {
-      res.json({
-        address: config.wallet.privateKey ? 'Connected' : 'Not configured',
-        balances: {},
-        timestamp: Date.now()
-      });
+      res.json({ address: config.wallet.privateKey ? 'Connected' : 'Not configured', balances: {}, timestamp: Date.now() });
     });
 
     this.app.use((req: Request, res: Response) => {
-      res.status(404).json({
-        error: 'Not Found',
-        path: req.path,
-        timestamp: Date.now()
-      });
+      res.status(404).json({ error: 'Not Found', path: req.path, timestamp: Date.now() });
     });
 
     this.app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       logger.error('Server error:', err);
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: err.message,
-        timestamp: Date.now()
-      });
+      res.status(500).json({ error: 'Internal Server Error', message: err.message, timestamp: Date.now() });
     });
   }
 
@@ -129,7 +86,6 @@ class APIServer {
       }
 
       const port = config.server.port;
-
       this.httpServer = createServer(this.app);
 
       this.httpServer.on('error', (error: any) => {
@@ -137,21 +93,16 @@ class APIServer {
           logger.error(`Port ${port} already in use`);
           reject(new Error(`Port ${port} already in use`));
         } else {
-          logger.error('Server error:', error);
           reject(error);
         }
       });
 
       this.httpServer.listen(port, '0.0.0.0', () => {
         this.isRunning = true;
-        
         logger.info('='.repeat(70));
-        logger.info(`  ✓ API Server RUNNING`);
-        logger.info(`  ✓ Port: ${port}`);
-        logger.info(`  ✓ URL: http://localhost:${port}`);
-        logger.info(`  ✓ Health: http://localhost:${port}/health`);
+        logger.info(`  API Server RUNNING on port ${port}`);
+        logger.info(`  URL: http://localhost:${port}`);
         logger.info('='.repeat(70));
-
         this.setupWebSocket();
         resolve();
       });
@@ -160,24 +111,13 @@ class APIServer {
 
   private setupWebSocket(): void {
     if (!this.httpServer) return;
-
     try {
       this.wsServer = new WebSocketServer({ server: this.httpServer });
-      
       this.wsServer.on('connection', (ws) => {
         logger.info('WebSocket client connected');
-        
-        ws.send(JSON.stringify({
-          type: 'connection',
-          message: 'Connected',
-          timestamp: Date.now()
-        }));
-
-        ws.on('close', () => {
-          logger.info('WebSocket client disconnected');
-        });
+        ws.send(JSON.stringify({ type: 'connection', message: 'Connected', timestamp: Date.now() }));
+        ws.on('close', () => logger.info('WebSocket client disconnected'));
       });
-
       logger.info('WebSocket server ready');
     } catch (error) {
       logger.error('WebSocket setup failed:', error);
@@ -186,21 +126,11 @@ class APIServer {
 
   public stop(): void {
     if (!this.isRunning) return;
-
-    logger.info('Stopping server...');
-    
-    if (this.wsServer) {
-      this.wsServer.close();
-    }
-    
-    if (this.httpServer) {
-      this.httpServer.close(() => {
-        logger.info('Server stopped');
-      });
-    }
-    
+    if (this.wsServer) this.wsServer.close();
+    if (this.httpServer) this.httpServer.close(() => logger.info('Server stopped'));
     this.isRunning = false;
   }
 }
 
 export const apiServer = new APIServer();
+
