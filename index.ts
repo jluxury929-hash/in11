@@ -3,9 +3,8 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-// FIX: Import files directly by name, as they are in the root
 import { apiServer } from './APIServer'; 
-import logger from './logger'; // FIX: Removed './utils/'
+import logger from './logger';
 import { ProductionMEVBot } from './ProductionMEVBot'; 
 
 async function main() {
@@ -15,25 +14,12 @@ async function main() {
 
     try {
         logger.info('[STEP 1] Starting API Server...');
-        // Note: Assuming apiServer is initialized elsewhere (e.g., APIServer.ts exports the instance)
         await apiServer.start(); 
         
         logger.info('[STEP 2] Initializing and Starting MEV Bot...');
         const bot = new ProductionMEVBot(); 
         await bot.initialize();
-        await bot.startMempoolMonitoring();
-
-        logger.info('[STEP 3] Full system operational.');
-
-        // Setup graceful shutdown
-        process.on('SIGINT', async () => {
-            await bot.stop();
-            process.exit(0);
-        });
-        process.on('SIGTERM', async () => {
-            await bot.stop();
-            process.exit(0);
-        });
+        await bot.startMempoolMonitoring(); // <-- This line should now run the bot indefinitely.
 
     } catch (error: any) {
         logger.error('Fatal startup failure:', error.message);
