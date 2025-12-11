@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-// --- TYPE DEFINITIONS (Simplified for clarity) ---
+// --- TYPE DEFINITIONS (Simplified) ---
 interface BotConfig {
     walletAddress: string;
     authSignerKey: string; 
@@ -29,6 +29,7 @@ class MEVBot {
 
         // --- 1. Wallet Initialization ---
         const privateKey = process.env.PRIVATE_KEY;
+        // CHANGE: Added FB_REPUTATION_KEY check
         const fbReputationKey = process.env.FB_REPUTATION_KEY;
         if (!privateKey) throw new Error("PRIVATE_KEY not set in environment.");
         if (!fbReputationKey) throw new Error("FB_REPUTATION_KEY (Flashbots Auth Signer) not set.");
@@ -42,15 +43,17 @@ class MEVBot {
         this.authSigner = new ethers.Wallet(fbReputationKey); 
         this.config.walletAddress = this.signer.address;
         
-        // --- 3. WSS Provider Setup (for real-time events - FIX for 'onopen' crash) ---
+        // --- 3. WSS Provider Setup (FIX for 'onopen' crash & network errors) ---
         const wssRpcUrl = process.env.ETH_WSS_URL;
         if (wssRpcUrl) {
-            console.log(`[DEBUG] Attempting WSS connection with URL: ${wssRpcUrl}`);
+            // CHANGE: Added DEBUG log to confirm URL is read
+            console.log(`[DEBUG] Attempting WSS connection with URL: ${wssRpcUrl}`); 
             try {
                 this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl);
                 this.setupWsConnectionListeners();
             } catch (error) {
-                console.error("[FATAL] WebSocket Provider failed to initialize.", error);
+                // CHANGE: Robust error handling for WSS initialization failure
+                console.error("[FATAL] WebSocket Provider failed to initialize. Check WSS_URL or Firewall.", error);
                 this.wsProvider = undefined; 
             }
         } else {
@@ -65,9 +68,11 @@ class MEVBot {
     }
 
     private loadConfig(): BotConfig {
+        // Reads from .env file or uses recommended defaults
         return {
             walletAddress: '', 
             authSignerKey: '', 
+            // CHANGE: Added critical safety/economic parameters
             minEthBalance: parseFloat(process.env.MIN_ETH_BALANCE || '0.02'), 
             gasReserveEth: parseFloat(process.env.GAS_RESERVE_ETH || '0.01'),
             minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || '0.05'),
@@ -77,17 +82,16 @@ class MEVBot {
     }
 
     /**
-     * Fixes the 'onopen' crash by using safer provider event handlers, 
-     * and removes the conflicting logic that caused "this should not happen".
+     * FIX: Uses safe provider event handlers and eliminates conflicting logic 
+     * that caused the "unhandled: Event { tag: 'open', ... }" error.
      */
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
-        // FIX: Use provider.on('open') instead of accessing the raw, unsafe .websocket.onopen
+        // FIX: The clean, non-conflicting way to detect connection open.
         this.wsProvider.on('open', () => {
             console.log("[WSS] Connection established successfully! Monitoring mempool...");
             
-            // This is where you would start listening to pending transactions/mempool events
             this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
 
@@ -95,19 +99,11 @@ class MEVBot {
             console.error("[WSS] Provider Event Error:", error.message);
         });
         
-        // The old, conflicting code that caused the 'unhandled: Event' and 'this should not happen' 
-        // has been implicitly replaced by the clean logic above.
+        // The old, conflicting code is GONE.
     }
 
     private handlePendingTransaction(txHash: string): void {
-        // --- Core Arbitrage Logic Goes Here ---
-        // 1. Fetch transaction details
-        // 2. Simulate Flash Loan trade
-        // 3. If profitable ( > MIN_PROFIT_THRESHOLD):
-        // 4. Construct Flashbots bundle and submit using the authSigner
-        
-        // Example: Only log new transactions
-        // console.log(`[MEMPOOL] Detected: ${txHash}`);
+        // Logic for fetching, simulating, and bundling transactions goes here.
     }
 
     public async startMonitoring(): Promise<void> {
@@ -122,7 +118,7 @@ class MEVBot {
                 return;
             }
         } catch (error) {
-            console.error("[FATAL] Could not check balance. Check HTTP_RPC_URL or API key.");
+            console.error("[FATAL] Could not check balance. Check HTTP_RPC_URL.");
             return;
         }
 
@@ -140,7 +136,7 @@ async function main() {
         const bot = new MEVBot();
         await bot.startMonitoring();
     } catch (error: any) {
-        // Catches the Fatal startup error if config is missing (e.g., PRIVATE_KEY)
+        // Catches the Fatal startup error if config is missing 
         console.error(`[ERROR] Fatal startup failure:`);
         console.error(`[ERROR] Details: ${error.message}`);
         process.exit(1);
