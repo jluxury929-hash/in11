@@ -1,18 +1,18 @@
 {
   "name": "massive-trading-engine",
-  "license": "ISC",
-  "dependencies": {
-    "ethers": "^5.7.2",  // <--- FIXED Ethers v5 version
-    "@types/node": "^20.10.0",
-    "dotenv": "^16.3.1",
-    "@flashbots/ethers-provider-bundle": "^0.6.0",
-    "axios": "^1.6.3"
-  },
-  // ... (devDependencies)
-}
-  },
+  "version": "1.0.0",
+  "description": "MEV Arbitrage Bot",
+  "main": "dist/index.js",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node index.ts"
+  },  // 
   "keywords": [
     "mev",
+//
     "arbitrage",
     "ethereum",
     "flashbots"
