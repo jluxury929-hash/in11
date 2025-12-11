@@ -1,4 +1,4 @@
-// MEVBot.ts (Complete and Fixed Version)
+// index.ts (Final, Cleaned-Up Version)
 
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-// --- TYPE DEFINITIONS (Simplified) ---
+// --- TYPE DEFINITIONS (Simplified for clarity) ---
 interface BotConfig {
     walletAddress: string;
     authSignerKey: string; 
@@ -18,43 +18,40 @@ interface BotConfig {
 }
 
 class MEVBot {
-    private signer: ethers.Wallet; // Wallet with ETH
-    private authSigner: ethers.Wallet; // Flashbots reputation signer (NO ETH)
+    private signer: ethers.Wallet; 
+    private authSigner: ethers.Wallet; 
     private httpProvider: ethers.providers.JsonRpcProvider;
     private wsProvider: ethers.providers.WebSocketProvider | undefined;
     private config: BotConfig;
 
     constructor() {
-        // --- 1. Load and Validate Configuration ---
         this.config = this.loadConfig();
 
-        // --- 2. Initialize Wallets ---
+        // --- 1. Wallet Initialization ---
         const privateKey = process.env.PRIVATE_KEY;
         const fbReputationKey = process.env.FB_REPUTATION_KEY;
         if (!privateKey) throw new Error("PRIVATE_KEY not set in environment.");
         if (!fbReputationKey) throw new Error("FB_REPUTATION_KEY (Flashbots Auth Signer) not set.");
         
-        // --- 3. Initialize HTTP Provider (For static checks/transaction sending) ---
+        // --- 2. HTTP Provider Setup (for balances, nonce) ---
         const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
         if (!httpRpcUrl) throw new Error("ETH_HTTP_RPC_URL not set.");
         this.httpProvider = new ethers.providers.JsonRpcProvider(httpRpcUrl);
         
         this.signer = new ethers.Wallet(privateKey, this.httpProvider);
-        this.authSigner = new ethers.Wallet(fbReputationKey); // No provider needed for signing only
-        
+        this.authSigner = new ethers.Wallet(fbReputationKey); 
         this.config.walletAddress = this.signer.address;
-        this.config.authSignerKey = fbReputationKey;
         
-        // --- 4. Initialize WSS Provider (FIX for onopen error) ---
+        // --- 3. WSS Provider Setup (for real-time events - FIX for 'onopen' crash) ---
         const wssRpcUrl = process.env.ETH_WSS_URL;
         if (wssRpcUrl) {
-            console.log(`[DEBUG] Attempting WSS connection with URL: ${wssRpcUrl}`); // Added debug log
+            console.log(`[DEBUG] Attempting WSS connection with URL: ${wssRpcUrl}`);
             try {
                 this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl);
                 this.setupWsConnectionListeners();
             } catch (error) {
-                console.error("[FATAL] WebSocket Provider failed to initialize. Check WSS_URL or Container Firewall.", error);
-                this.wsProvider = undefined; // Ensure the object is correctly undefined on failure
+                console.error("[FATAL] WebSocket Provider failed to initialize.", error);
+                this.wsProvider = undefined; 
             }
         } else {
             console.warn("ETH_WSS_URL not set. Running in limited mode.");
@@ -68,7 +65,6 @@ class MEVBot {
     }
 
     private loadConfig(): BotConfig {
-        // Reads from .env file or uses recommended defaults
         return {
             walletAddress: '', 
             authSignerKey: '', 
@@ -80,47 +76,59 @@ class MEVBot {
         };
     }
 
-    // --- FIX APPLIED HERE: Safely sets up WSS connection listeners ---
+    /**
+     * Fixes the 'onopen' crash by using safer provider event handlers, 
+     * and removes the conflicting logic that caused "this should not happen".
+     */
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
-        // FIX: Using the provider's built-in 'on' event is safer than accessing '.websocket.onopen'
+        // FIX: Use provider.on('open') instead of accessing the raw, unsafe .websocket.onopen
         this.wsProvider.on('open', () => {
-            console.log("[WSS] Connection established successfully!");
+            console.log("[WSS] Connection established successfully! Monitoring mempool...");
+            
+            // This is where you would start listening to pending transactions/mempool events
+            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
 
         this.wsProvider.on('error', (error: Error) => {
             console.error("[WSS] Provider Event Error:", error.message);
         });
         
-        this.wsProvider.on('block', (blockNumber: number) => {
-            // console.log(`[WSS] Monitoring new block: ${blockNumber}`);
-        });
+        // The old, conflicting code that caused the 'unhandled: Event' and 'this should not happen' 
+        // has been implicitly replaced by the clean logic above.
     }
 
-    // --- Core Bot Logic Starts Here ---
+    private handlePendingTransaction(txHash: string): void {
+        // --- Core Arbitrage Logic Goes Here ---
+        // 1. Fetch transaction details
+        // 2. Simulate Flash Loan trade
+        // 3. If profitable ( > MIN_PROFIT_THRESHOLD):
+        // 4. Construct Flashbots bundle and submit using the authSigner
+        
+        // Example: Only log new transactions
+        // console.log(`[MEMPOOL] Detected: ${txHash}`);
+    }
+
     public async startMonitoring(): Promise<void> {
         console.log("[STATUS] Monitoring started...");
         try {
             const balance = await this.httpProvider.getBalance(this.config.walletAddress);
-            console.log(`[BALANCE] Current ETH Balance: ${ethers.utils.formatEther(balance)} ETH`);
+            const formattedBalance = ethers.utils.formatEther(balance);
+            console.log(`[BALANCE] Current ETH Balance: ${formattedBalance} ETH`);
 
             if (balance.lt(ethers.utils.parseEther(this.config.minEthBalance.toString()))) {
-                console.error(`[FATAL] Balance is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
+                console.error(`[FATAL] Balance (${formattedBalance}) is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
                 return;
             }
         } catch (error) {
-            console.error("[FATAL] Could not check balance. Check HTTP_RPC_URL.");
+            console.error("[FATAL] Could not check balance. Check HTTP_RPC_URL or API key.");
             return;
         }
 
-        // Mempool monitoring logic using WSS provider (if available)
-        if (this.wsProvider) {
-            this.wsProvider.on('pending', (txHash: string) => {
-                // Arbitrage logic goes here...
-            });
-        } else {
-            console.warn("WSS Provider is not active. Cannot monitor mempool in real-time.");
+        if (!this.wsProvider) {
+            console.warn("WSS Provider is not active. Cannot monitor mempool in real-time. Execution is halted.");
+            return;
         }
     }
 }
