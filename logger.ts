@@ -1,37 +1,28 @@
-// logger.ts (IN ROOT DIRECTORY)
+// logger.ts
+// A simple logging utility for consistent output
 
-import * as winston from 'winston';
-
-const { combine, timestamp, printf, colorize } = winston.format;
-
-const logFormat = printf(({ level, message, timestamp }) => {
-    const time = new Date(timestamp as string).toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    });
-    
-    return `[${time}] [${level.toUpperCase()}] ${message}`;
-});
-
-const logger = winston.createLogger({
-    level: 'info', 
-    transports: [
-        new winston.transports.Console({
-            format: combine(
-                colorize(),
-                timestamp(),
-                logFormat
-            ),
-        }),
-    ],
-    exitOnError: false, 
-});
-
-if (process.env.NODE_ENV !== 'production') {
-    logger.level = 'debug';
+enum LogLevel {
+    DEBUG = 0,
+    INFO = 1,
+    WARN = 2,
+    ERROR = 3,
+    FATAL = 4,
 }
 
-export default logger;
+const LOG_LEVEL = LogLevel.INFO;
+
+const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
+    if (level >= LOG_LEVEL) {
+        const timestamp = new Date().toISOString();
+        const levelName = LogLevel[level];
+        console.log(`[${timestamp}] [${levelName}] ${message}`, ...optionalParams);
+    }
+};
+
+export const logger = {
+    debug: (message: string, ...optionalParams: any[]) => log(LogLevel.DEBUG, message, ...optionalParams),
+    info: (message: string, ...optionalParams: any[]) => log(LogLevel.INFO, message, ...optionalParams),
+    warn: (message: string, ...optionalParams: any[]) => log(LogLevel.WARN, message, ...optionalParams),
+    error: (message: string, ...optionalParams: any[]) => log(LogLevel.ERROR, message, ...optionalParams),
+    fatal: (message: string, ...optionalParams: any[]) => log(LogLevel.FATAL, message, ...optionalParams),
+};
