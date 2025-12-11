@@ -1,7 +1,8 @@
 // FlashbotsMEVExecutor.ts (IN ROOT DIRECTORY)
 
-// Import specific classes and utilities from their dedicated paths
-import { Wallet, JsonRpcProvider } from 'ethers'; 
+// CORRECT V5/V6 compatible import for classes and types
+import { Wallet } from 'ethers';
+import { JsonRpcProvider } from '@ethersproject/providers'; // Explicit V5/V6 provider import
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
 import logger from './logger';
 import { NonceManager } from './NonceManager';
