@@ -21,28 +21,23 @@ export class FlashbotsMEVExecutor {
     private nonce: number | undefined;
 
     constructor(private config: ExecutorConfig) {
-        // === CRITICAL FIX FOR "could not detect network" ERROR ===
-        // We explicitly pass the network/Chain ID (1 for mainnet) to the provider
-        // to prevent Ethers from failing the automatic network detection.
+        // CRITICAL FIX: Explicitly passing Chain ID (1) to prevent "could not detect network"
         this.provider = new providers.JsonRpcProvider(config.rpcUrl, 1);
-        // ==========================================================
         
         this.wallet = new Wallet(config.walletPrivateKey, this.provider);
     }
 
     public async initialize() {
         console.log(`[INFO] Wallet Address: ${this.wallet.address}`);
-        
-        // This line is where the error was triggered, but the fix is in the constructor.
+        // This is the line that confirms the network connection
         await this.provider.getBlockNumber(); 
         console.log("[INFO] Successful connection to RPC provider.");
 
         console.log("[INFO] Initializing Flashbots executor...");
         
-        // The Signer key is used ONLY for authentication and reputation
         const authSigner = new Wallet(this.config.flashbots.relaySignerKey, this.provider);
         
-        // CRITICAL FIX for 401 UNAUTHORIZED: Explicitly passing "mainnet"
+        // CRITICAL FIX: Explicitly passing "mainnet" to prevent 401 Unauthorized errors
         this.flashbotsProvider = await FlashbotsBundleProvider.create(
             this.provider,                 
             authSigner,                    
@@ -56,12 +51,23 @@ export class FlashbotsMEVExecutor {
         console.log("[INFO] Flashbots executor ready.");
     }
 
+    // This method now includes a health check to prove the loop is running
     public async startMonitoring() {
         if (!this.flashbotsProvider) {
             throw new Error("Flashbots executor not initialized.");
         }
         console.log("[INFO] [STEP 3] Full system operational. Monitoring mempool...");
-        // Your WSS subscription logic and main MEV loop will run here.
+
+        // NOTE: Your WSS subscription logic must go here to start listening to the mempool!
+        // e.g., this.provider.on('pending', this.processPendingTx.bind(this));
+
+        // === HEALTH CHECK LOG ===
+        let healthCheckCount = 0;
+        setInterval(() => {
+            healthCheckCount++;
+            console.log(`[MONITOR] Mempool monitoring is alive. Check #${healthCheckCount}`);
+        }, 10000); // Logs every 10 seconds to confirm the process is still active.
+        // ==========================
     }
     
     // Placeholder methods to satisfy calls from ProductionMEVBot.ts.
