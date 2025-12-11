@@ -5,7 +5,7 @@ dotenv.config();
 
 import { apiServer } from './APIServer'; 
 import logger from './logger';
-import { ProductionMEVBot } from './ProductionMEVBot'; // **THIS IMPORT NOW WORKS**
+import { ProductionMEVBot } from './ProductionMEVBot'; 
 
 async function main() {
     logger.info('='.repeat(70));
@@ -17,9 +17,9 @@ async function main() {
         await apiServer.start(); 
         
         logger.info('[STEP 2] Initializing and Starting MEV Bot...');
-        const bot = new ProductionMEVBot();  // **THIS INSTANTIATION NOW WORKS**
+        const bot = new ProductionMEVBot(); 
         await bot.initialize();
-        await bot.startMempoolMonitoring(); // Assuming this is the name you use
+        await bot.startMempoolMonitoring();
 
     } catch (error: any) {
         logger.error('Fatal startup failure:', error.message);
