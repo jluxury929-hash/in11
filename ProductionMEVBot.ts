@@ -78,37 +78,31 @@ export class ProductionMEVBot {
         }
     }
 
-    // FIX: Simplified listener attachment for robustness
+    // FIX: Attach 'pending' inside 'open' to guarantee execution order.
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
-        // 1. Error handler first (CRITICAL for stability)
         this.wsProvider.on('error', (error: Error) => {
             logger.error(`[WSS] Provider Event Error: ${error.message}`);
         });
 
-        // 2. Open handler
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
+            
+            // CRITICAL FIX: Attach pending listener here.
+            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
         
-        // 3. Pending listener (the source of the likely crash)
-        this.wsProvider.on('pending', this.handlePendingTransaction.bind(this));
+        // Removed standalone this.wsProvider.on('pending',...)
     }
 
-    // FIX: Added try...catch block to handle errors in processing logic
     private handlePendingTransaction(txHash: string): void {
         try {
-            // If this block is empty, the error might be external (bad WSS URL)
-            // If it contains logic, it MUST be error-free or wrapped.
+            // All processing logic MUST be inside this try/catch block.
             logger.debug(`[Pending TX] Received hash: ${txHash}. Processing...`);
             
-            // NOTE: If you have logic here that is synchronous and fails, 
-            // the logger.debug call should reveal that. 
-            
         } catch (error) {
-            // CRITICAL: Catches any synchronous error from your processing logic
-            // and logs it instead of crashing the main Node.js process.
+            // Prevents runtime crashes from escaping event loop.
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
