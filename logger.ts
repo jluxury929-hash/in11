@@ -1,5 +1,4 @@
 // logger.ts
-// A simple logging utility for consistent output
 
 enum LogLevel {
     DEBUG = 0,
@@ -19,7 +18,7 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
     }
 };
 
-export const logger = {
+export const logger = { // Exported as a named export
     debug: (message: string, ...optionalParams: any[]) => log(LogLevel.DEBUG, message, ...optionalParams),
     info: (message: string, ...optionalParams: any[]) => log(LogLevel.INFO, message, ...optionalParams),
     warn: (message: string, ...optionalParams: any[]) => log(LogLevel.WARN, message, ...optionalParams),
