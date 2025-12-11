@@ -18,7 +18,7 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
     }
 };
 
-export const logger = { // Exported as a named export
+export const logger = {
     debug: (message: string, ...optionalParams: any[]) => log(LogLevel.DEBUG, message, ...optionalParams),
     info: (message: string, ...optionalParams: any[]) => log(LogLevel.INFO, message, ...optionalParams),
     warn: (message: string, ...optionalParams: any[]) => log(LogLevel.WARN, message, ...optionalParams),
