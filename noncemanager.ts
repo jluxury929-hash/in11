@@ -24,43 +24,28 @@ export class NonceManager {
     getNextNoncePair(): [number, number] {
         const frontRunNonce = this.currentNonce;
         const backRunNonce = this.currentNonce + 1;
-
         this.pendingNonces.add(frontRunNonce);
         this.pendingNonces.add(backRunNonce);
-
         this.currentNonce += 2;
-
-        logger.info(`Allocated nonce pair: [${frontRunNonce}, ${backRunNonce}]`);
         return [frontRunNonce, backRunNonce];
     }
 
     confirmBundle(frontRunNonce: number, backRunNonce: number): void {
         this.pendingNonces.delete(frontRunNonce);
         this.pendingNonces.delete(backRunNonce);
-        logger.info(`Confirmed nonces: [${frontRunNonce}, ${backRunNonce}]`);
     }
 
     async handleBundleFailure(): Promise<void> {
-        logger.warn('Bundle failed - resyncing nonces');
         this.currentNonce = await this.provider.getTransactionCount(this.address, 'latest');
         this.pendingNonces.clear();
-        logger.info(`Nonce resynced to: ${this.currentNonce}`);
     }
 
     async resyncIfNeeded(): Promise<void> {
         if (this.pendingNonces.size > 10) {
-            logger.info('Periodic nonce resync triggered');
             const blockchainNonce = await this.provider.getTransactionCount(this.address, 'pending');
             this.currentNonce = blockchainNonce;
             this.pendingNonces.clear();
         }
     }
-
-    getCurrentNonce(): number {
-        return this.currentNonce;
-    }
-
-    getPendingCount(): number {
-        return this.pendingNonces.size;
-    }
 }
+
