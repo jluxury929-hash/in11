@@ -75,22 +75,20 @@ export class FlashbotsMEVExecutor {
             signedTransaction
         }));
 
-        // CRITICAL FIX: Removed explicit type annotation here to allow TypeScript to infer 
-        // the union type and enable correct type narrowing later.
+        // Removed explicit type annotation here to allow TypeScript to infer the union type
         const bundleSubmission = await this.flashbotsProvider.sendBundle( 
             flashbotsTransactions,
             targetBlock
         );
         
-        // FIX: The 'error' in submission check correctly narrows the type.
-        // This resolves TS2322 and TS18046.
+        // Final Fix: Explicitly cast RelayResponseError to FlashbotsTransactionResponse 
+        // to resolve TS2739 compilation error.
         if ('error' in bundleSubmission) {
-            // TypeScript now knows bundleSubmission is a RelayResponseError
             logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`); 
-            return bundleSubmission; 
+            return bundleSubmission as FlashbotsTransactionResponse; // <-- FIX: Explicit type cast
         }
 
-        // If we reach here, TypeScript knows bundleSubmission is a successful FlashbotsTransaction 
+        // TypeScript correctly knows this is a successful FlashbotsTransaction
         logger.info(`Bundle submission successful: ${bundleSubmission.bundleHash}`);
         return bundleSubmission; 
     }
