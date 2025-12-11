@@ -17,10 +17,11 @@ export class FlashbotsMEVExecutor {
     constructor(
         rpcUrl: string,
         privateKey: string,
-        helperContract: string,
+        helperContract: string, // Removed Flashbots Signer Key from constructor
         uniswapRouter: string,
         wethAddress: string
     ) {
+        // Initializes the standard Ethers Provider
         this.provider = new ethers.JsonRpcProvider(rpcUrl); 
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.uniswapRouter = uniswapRouter;
@@ -30,18 +31,17 @@ export class FlashbotsMEVExecutor {
     async initialize(): Promise<void> {
         logger.info('Initializing Flashbots executor...');
         try {
-            // CRITICAL DIAGNOSTIC FIX: Hardcode the correct URL to bypass config reading errors.
-            const FLASHBOTS_RELAY_URL = "https://relay.flashbots.net"; 
-
+            // 1. Create the dedicated signer for Flashbots using the key from config
             const authSigner = new ethers.Wallet(
                 config.flashbots.relaySignerKey,
-                this.provider
+                this.provider // Use the standard RPC provider for context
             );
 
+            // 2. CRITICAL FIX: Correct parameter sequence for Flashbots initialization
             this.flashbotsProvider = await FlashbotsBundleProvider.create(
-                this.provider,                 // <-- 1. Standard Ethers Provider (working)
+                this.provider,                 // <-- 1. Standard Ethers Provider (for network detection)
                 authSigner,                    // <-- 2. Flashbots Auth Signer
-                FLASHBOTS_RELAY_URL            // <-- 3. Using HARDCODED URL
+                config.flashbots.relayUrl      // <-- 3. Flashbots Relay URL (https://relay.flashbots.net)
             );
             
             await this.nonceManager.initialize();
@@ -52,8 +52,6 @@ export class FlashbotsMEVExecutor {
             throw error;
         }
     }
-    
-    // ... (rest of the class methods executeSandwich and periodicResync remain unchanged)
     
     async executeSandwich(opportunity: RawMEVOpportunity): Promise<boolean> {
         if (!this.flashbotsProvider) {
