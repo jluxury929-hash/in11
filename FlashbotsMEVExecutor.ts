@@ -1,11 +1,12 @@
-// src/engine/FlashbotsMEVExecutor.ts
+// FlashbotsMEVExecutor.ts (IN ROOT DIRECTORY)
 
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
-import logger from '../utils/logger'; // Corrected path
-import { NonceManager } from './NonceManager'; // FIX: Correct casing for Linux (NonceManager)
-import { RawMEVOpportunity } from '../types'; // Corrected path
+import logger from './utils/logger'; // FIX: Removed '../utils/'
+import { NonceManager } from './NonceManager'; // FIX: Correct sibling import
+import { RawMEVOpportunity } from './types'; // FIX: Removed '../types'
 
+//
 export class FlashbotsMEVExecutor {
     private provider: ethers.JsonRpcProvider;
     private wallet: ethers.Wallet;
