@@ -1,11 +1,12 @@
 // NonceManager.ts (IN ROOT DIRECTORY)
 
-import { Wallet, JsonRpcProvider } from 'ethers';
+import { Wallet } from 'ethers';
+import { JsonRpcProvider } from '@ethersproject/providers'; // Explicit provider import
 import logger from './logger';
 // ... other imports
 
 export class NonceManager {
-    private provider: JsonRpcProvider; // Use imported class
+    private provider: JsonRpcProvider; 
     private walletAddress: string;
     private currentNonce: number = 0;
     
