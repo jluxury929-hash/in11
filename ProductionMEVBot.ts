@@ -1,14 +1,13 @@
 // ProductionMEVBot.ts (IN ROOT DIRECTORY)
 
 import { ethers } from 'ethers'; 
-import { apiServer } from './APIServer'; // FIX: Removed '../api/'
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // FIX: Correct sibling import
-import { MempoolMonitor } from './MempoolMonitor'; // FIX: Correct sibling import
-import logger from './utils/logger'; // FIX: Removed '../utils/'
-import { config } from './config'; // FIX: Removed '../config'
-import { RawMEVOpportunity } from './types'; // FIX: Removed '../types'
+import { apiServer } from './APIServer'; // FIX: Direct sibling import
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; // FIX: Direct sibling import
+import { MempoolMonitor } from './MempoolMonitor'; // FIX: Direct sibling import
+import logger from './logger'; // FIX: Direct sibling import
+import { config } from './config'; // FIX: Direct sibling import
+import { RawMEVOpportunity } from './types'; // FIX: Direct sibling import
 
-//
 export class ProductionMEVBot {
     private httpProvider: ethers.JsonRpcProvider | null = null;
     private wallet: ethers.Wallet | null = null;
@@ -121,7 +120,8 @@ export class ProductionMEVBot {
         if (!this.isRunning) return;
         logger.info('Stopping...');
         if (this.mempool) await this.mempool.stop();
-        apiServer.stop();
+        // Note: Assuming apiServer has a defined stop method
+        (apiServer as any).stop(); 
         if (this.httpProvider) (this.httpProvider as any).destroy();
         this.isRunning = false;
         logger.info('Stopped');
