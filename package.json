@@ -1,22 +1,21 @@
 {
   "name": "massive-trading-engine",
   "version": "1.0.0",
-  "description": "MEV Arbitrage Bot",
-  "main": "dist/index.js",
+  // ... (lines 4-11, the scripts block)
   "scripts": {
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node index.ts"
-  },  // 
+  },  // <--- Ensure ONLY }, is here. No //, no extra spaces.
   "keywords": [
     "mev",
-//
     "arbitrage",
     "ethereum",
     "flashbots"
   ],
+  //
   "author": "",
   "license": "ISC",
   "dependencies": {
