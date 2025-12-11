@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
-import logger from '../utils/logger';
-import { NonceManager } from './nonceManager';
-import { RawMEVOpportunity } from '../types';
+import logger from './logger';
+import { NonceManager } from './noncemanager';
+import { RawMEVOpportunity } from './types';
 
 export class FlashbotsMEVExecutor {
     private provider: ethers.JsonRpcProvider;
