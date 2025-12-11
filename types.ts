@@ -9,5 +9,3 @@ export interface BotConfig {
     mevHelperContractAddress: string;
     flashbotsUrl: string;
 }
-
-// Add other interfaces for transactions, bundles, etc., here.
