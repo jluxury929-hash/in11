@@ -1,8 +1,7 @@
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
-// providers import is often needed here too, but we'll assume it's covered by imports in Executor
 
 // --- Environment Variables (Read from process.env) ---
-// Note: In a real app, you'd use a library like dotenv for configuration loading and validation.
+// Note: In a real app, validation and default values should be applied here.
 const ETHEREUM_RPC_HTTP = process.env.ETHEREUM_RPC_HTTP as string;
 const WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY as string;
 const FLASHBOTS_RELAY_URL = process.env.FLASHBOTS_RELAY_URL as string;
@@ -25,9 +24,8 @@ async function startBot() {
         await executor.initialize();
         executor.startMonitoring();
         
-        // Example logic demonstrating the methods we added as placeholders
-        // executor.executeSandwich({hash: '0x123...'});
-        // setInterval(() => executor.periodicResync(), 60000);
+        // Example logic:
+        // setInterval(() => executor.periodicResync(), 60000); 
 
     } catch (error) {
         console.error(`[FATAL] Bot startup failed:`, error);
