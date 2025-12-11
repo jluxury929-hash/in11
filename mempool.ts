@@ -8,11 +8,7 @@ export class MempoolMonitor {
     private minTradeValueEth: number;
     private isMonitoring: boolean = false;
 
-    constructor(
-        rpcWss: string,
-        uniswapV2Router: string,
-        minTradeValueEth: number = 0.1
-    ) {
+    constructor(rpcWss: string, uniswapV2Router: string, minTradeValueEth: number = 0.1) {
         this.provider = new ethers.WebSocketProvider(rpcWss);
         this.uniswapV2Router = uniswapV2Router.toLowerCase();
         this.minTradeValueEth = minTradeValueEth;
@@ -24,28 +20,22 @@ export class MempoolMonitor {
 
         this.provider.on('pending', async (txHash: string) => {
             if (!this.isMonitoring) return;
-
             try {
                 const tx = await this.provider.getTransaction(txHash);
                 if (!tx) return;
-
                 const opportunity = await this.analyzeTransaction(tx);
-                if (opportunity) {
-                    callback(opportunity);
-                }
+                if (opportunity) callback(opportunity);
             } catch (error) {
-                // Silently ignore
+                // Silent
             }
         });
 
-        logger.info('✓ Mempool monitoring active');
+        logger.info('Mempool monitoring active');
     }
 
     private async analyzeTransaction(tx: ethers.TransactionResponse): Promise<RawMEVOpportunity | null> {
         try {
-            if (!tx.to || tx.to.toLowerCase() !== this.uniswapV2Router) {
-                return null;
-            }
+            if (!tx.to || tx.to.toLowerCase() !== this.uniswapV2Router) return null;
 
             const iface = new ethers.Interface([
                 'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)',
@@ -66,10 +56,7 @@ export class MempoolMonitor {
 
             const amountIn = tx.value || decoded.args.amountIn as bigint;
             const amountInEth = parseFloat(ethers.formatEther(amountIn));
-            
             if (amountInEth < this.minTradeValueEth) return null;
-
-            const estimatedProfitEth = (amountInEth * 0.003).toFixed(6);
 
             const rawTx = ethers.Transaction.from(tx).serialized;
 
@@ -81,9 +68,8 @@ export class MempoolMonitor {
                 tokenIn: path[0],
                 tokenOut: path[path.length - 1],
                 amountIn: amountIn,
-                estimatedProfitEth
+                estimatedProfitEth: (amountInEth * 0.003).toFixed(6)
             };
-
         } catch (error) {
             return null;
         }
@@ -95,3 +81,4 @@ export class MempoolMonitor {
         logger.info('Mempool monitor stopped');
     }
 }
+
