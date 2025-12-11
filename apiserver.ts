@@ -4,8 +4,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { createServer, Server as HTTPServer } from 'http';
 import { Server as WebSocketServer } from 'ws';
-import { config } from '../config';
-import logger from '../utils/logger';
+import { config } from './config';
+import logger from './logger';
 
 class APIServer {
   private app: express.Application;
@@ -133,5 +133,4 @@ class APIServer {
 }
 
 export const apiServer = new APIServer();
-
 
