@@ -1,145 +1,34 @@
+// index.ts (Application Entry Point)
+
+// 🚨 CRITICAL FIX 1: Ensure environment variables are loaded FIRST.
+// This is redundant if imported by config.ts, but safe for index.
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { ethers } from 'ethers';
-import { apiServer } from './apiserver';
-import { FlashbotsMEVExecutor } from './flashbots';
-import { MempoolMonitor } from './mempool';
-import logger from './logger';
-import { config } from './config';
-import { RawMEVOpportunity } from './types';
-
-class ProductionMEVBot {
-    private httpProvider: ethers.JsonRpcProvider | null = null;
-    private wallet: ethers.Wallet | null = null;
-    private executor: FlashbotsMEVExecutor | null = null;
-    private mempool: MempoolMonitor | null = null;
-    private isRunning: boolean = false;
-
-    async initialize(): Promise<void> {
-        try {
-            this.httpProvider = new ethers.JsonRpcProvider(config.ethereum.rpcHttp);
-            
-            if (config.wallet.privateKey) {
-                this.wallet = new ethers.Wallet(config.wallet.privateKey, this.httpProvider);
-                logger.info(`Wallet: ${this.wallet.address}`);
-
-                if (config.flashbots.relaySignerKey && config.mev.helperContract) {
-                    this.executor = new FlashbotsMEVExecutor(
-                        config.ethereum.rpcHttp,
-                        config.wallet.privateKey,
-                        config.flashbots.relaySignerKey,
-                        config.mev.helperContract,
-                        config.mev.uniswapRouter,
-                        config.mev.wethAddress
-                    );
-                    await this.executor.initialize();
-
-                    this.mempool = new MempoolMonitor(
-                        config.ethereum.rpcWss,
-                        config.mev.uniswapRouter,
-                        config.trading.minTradeValueEth
-                    );
-                }
-            } else {
-                logger.warn('No wallet - trading disabled');
-            }
-        } catch (error: any) {
-            logger.error('Initialization error:', error);
-            throw error;
-        }
-    }
-
-    async start(): Promise<void> {
-        if (this.isRunning) return;
-
-        logger.info('='.repeat(70));
-        logger.info('  MASSIVE TRADING ENGINE');
-        logger.info('='.repeat(70));
-
-        try {
-            await this.initialize();
-            await apiServer.start();
-
-            if (this.wallet && this.httpProvider) {
-                await this.checkBalance();
-                setInterval(() => this.checkBalance(), config.trading.checkBalanceInterval);
-            }
-
-            if (this.mempool && this.executor) {
-                await this.mempool.start(async (opp: RawMEVOpportunity) => {
-                    logger.info(`MEV Opportunity: ${opp.type}`);
-                    if (this.executor) {
-                        const success = await this.executor.executeSandwich(opp);
-                        if (success) {
-                            logger.info('PROFIT!');
-                            await this.withdrawProfits();
-                        }
-                    }
-                });
-
-                setInterval(() => {
-                    if (this.executor) this.executor.periodicResync();
-                }, 30000);
-            }
-
-            this.isRunning = true;
-            logger.info('Bot operational');
-        } catch (error: any) {
-            logger.error('Startup failed:', error);
-            throw error;
-        }
-    }
-
-    async checkBalance(): Promise<boolean> {
-        if (!this.wallet || !this.httpProvider) return false;
-        try {
-            const balance = await this.httpProvider.getBalance(this.wallet.address);
-            const balanceEth = parseFloat(ethers.formatEther(balance));
-            logger.info(`Balance: ${balanceEth.toFixed(6)} ETH`);
-            return balanceEth >= config.wallet.minEthBalance;
-        } catch (error: any) {
-            logger.error('Balance check failed:', error.message);
-            return false;
-        }
-    }
-
-    async withdrawProfits(): Promise<void> {
-        if (!config.wallet.profitAddress || !this.wallet || !this.httpProvider) return;
-        try {
-            const balance = await this.httpProvider.getBalance(this.wallet.address);
-            const balanceEth = parseFloat(ethers.formatEther(balance));
-            const profitAmount = balanceEth - config.wallet.minEthBalance - config.wallet.gasReserveEth;
-
-            if (profitAmount > 0.001) {
-                logger.info(`Withdrawing ${profitAmount.toFixed(6)} ETH`);
-                const tx = await this.wallet.sendTransaction({
-                    to: config.wallet.profitAddress,
-                    value: ethers.parseEther(profitAmount.toFixed(18))
-                });
-                await tx.wait();
-                logger.info(`Withdrawal: ${tx.hash}`);
-            }
-        } catch (error: any) {
-            logger.error('Withdrawal failed:', error);
-        }
-    }
-
-    async stop(): Promise<void> {
-        if (!this.isRunning) return;
-        logger.info('Stopping...');
-        if (this.mempool) await this.mempool.stop();
-        apiServer.stop();
-        if (this.httpProvider) this.httpProvider.destroy();
-        this.isRunning = false;
-        logger.info('Stopped');
-    }
-}
+import { apiServer } from './src/api/APIServer';
+import logger from './src/utils/logger'; // Assuming logger is inside src/utils
+import { ProductionMEVBot } from './src/engine/ProductionMEVBot'; // Assuming the main bot is here
 
 async function main() {
-    const bot = new ProductionMEVBot();
+    logger.info('='.repeat(70));
+    logger.info('  MASSIVE TRADING ENGINE STARTUP SEQUENCE');
+    logger.info('='.repeat(70));
+
     try {
-        await bot.start();
+        // 1. Start API Server INSTANTLY for quick health check response.
+        logger.info('[STEP 1] Starting API Server...');
+        await apiServer.start(); 
+        
+        // 2. Initialize and Start the Heavy Bot AFTER API is running.
+        // This ensures the Event Loop is free for /health checks.
+        logger.info('[STEP 2] Initializing and Starting MEV Bot...');
+        const bot = new ProductionMEVBot(); // Assuming your provided bot class is here
+        await bot.initialize(); // Initialize connections, Flashbots, etc.
+        await bot.startMempoolMonitoring(); // Start the actual monitoring/trading loop
+
+        logger.info('[STEP 3] Full system operational.');
+
+        // Setup graceful shutdown (SIGINT/SIGTERM)
         process.on('SIGINT', async () => {
             await bot.stop();
             process.exit(0);
@@ -148,19 +37,23 @@ async function main() {
             await bot.stop();
             process.exit(0);
         });
+
     } catch (error: any) {
-        logger.error('Fatal error:', error);
-        process.exit(1);
+        logger.error('Fatal startup failure:', error.message);
+        logger.error('Details:', error);
+        // CRASH on FATAL error so Railway restarts cleanly
+        process.exit(1); 
     }
 }
 
+// CRITICAL CATCH-ALLS for stability
 process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', error);
+    logger.error('Uncaught Exception (FATAL):', error);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled Rejection:', reason);
+    logger.error('Unhandled Rejection (FATAL):', reason);
     process.exit(1);
 });
 
