@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (FINAL FIXED VERSION)
+// ProductionMEVBot.ts (FINAL, RUNTIME-SAFE VERSION)
 
 import { 
     ethers, 
@@ -37,8 +37,6 @@ export class ProductionMEVBot {
              logger.warn("Missing critical environment variables during construction. Executor initialization will fail.");
         }
         
-        // Use placeholder values if keys are missing to prevent constructor errors, 
-        // relying on startMonitoring/initializeExecutor to handle fatal exit.
         this.httpProvider = new ethers.providers.JsonRpcProvider(httpRpcUrl || 'http://placeholder.local'); 
         this.signer = new Wallet(privateKey || ethers.constants.HashZero, this.httpProvider);
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
@@ -80,6 +78,7 @@ export class ProductionMEVBot {
         }
     }
 
+    // FIX: Simplified and robust listener attachment
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
@@ -89,12 +88,29 @@ export class ProductionMEVBot {
 
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
-            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
+        
+        // Attach the pending listener directly
+        this.wsProvider.on('pending', this.handlePendingTransaction.bind(this));
     }
 
+    // FIX: Added try...catch block to prevent runtime crashes
     private handlePendingTransaction(txHash: string): void {
-        // Core MEV logic for handling a new transaction in the mempool
+        try {
+            // --- YOUR CORE MEV LOGIC GOES HERE ---
+            // If this section is empty, this error might indicate an invalid WSS URL 
+            // is still crashing the provider externally.
+            logger.debug(`[Pending TX] Received hash: ${txHash}. Processing...`);
+
+            // Example of what should be here (but requires implementation):
+            // const tx = this.httpProvider.getTransaction(txHash);
+            // if (!tx) return;
+            // this.executor.attemptArbitrage(tx);
+            
+        } catch (error) {
+            // CRITICAL: Catches any synchronous error from your processing logic.
+            logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
+        }
     }
 
     public async startMonitoring(): Promise<void> {
