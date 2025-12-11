@@ -3,8 +3,9 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+// Fixes TS2307 errors by using the correct relative path from the root
 import { apiServer } from './src/api/APIServer';
-import logger from './src/utils/logger'; // Assumed path for logger
+import logger from './src/utils/logger'; 
 import { ProductionMEVBot } from './src/engine/ProductionMEVBot';
 
 async function main() {
@@ -38,7 +39,6 @@ async function main() {
     } catch (error: any) {
         logger.error('Fatal startup failure:', error.message);
         logger.error('Details:', error);
-        // CRASH on FATAL error so Railway restarts cleanly
         process.exit(1); 
     }
 }
