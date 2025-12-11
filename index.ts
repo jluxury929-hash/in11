@@ -14,9 +14,11 @@ async function main() {
     logger.info('='.repeat(70));
 
     try {
+        // 1. Start API Server INSTANTLY for quick health check response.
         logger.info('[STEP 1] Starting API Server...');
         await apiServer.start(); 
         
+        // 2. Initialize and Start the Heavy Bot AFTER API is running.
         logger.info('[STEP 2] Initializing and Starting MEV Bot...');
         const bot = new ProductionMEVBot(); 
         await bot.initialize();
@@ -24,6 +26,7 @@ async function main() {
 
         logger.info('[STEP 3] Full system operational.');
 
+        // Setup graceful shutdown
         process.on('SIGINT', async () => {
             await bot.stop();
             process.exit(0);
@@ -36,6 +39,7 @@ async function main() {
     } catch (error: any) {
         logger.error('Fatal startup failure:', error.message);
         logger.error('Details:', error);
+        // Crash on FATAL error so Railway restarts cleanly
         process.exit(1); 
     }
 }
