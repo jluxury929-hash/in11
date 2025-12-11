@@ -28,7 +28,6 @@ class APIServer {
   }
 
   private setupRoutes(): void {
-    // Root
     this.app.get('/', (req: Request, res: Response) => {
       res.json({
         name: 'Massive Trading Engine API',
@@ -38,7 +37,6 @@ class APIServer {
       });
     });
 
-    // Health
     this.app.get('/health', (req: Request, res: Response) => {
       res.json({
         status: 'ok',
@@ -47,7 +45,6 @@ class APIServer {
       });
     });
 
-    // Status
     this.app.get('/api/status', (req: Request, res: Response) => {
       res.json({
         status: 'operational',
@@ -57,17 +54,14 @@ class APIServer {
       });
     });
 
-    // Start
     this.app.post('/api/start', (req: Request, res: Response) => {
       res.json({ success: true, message: 'Engine started', timestamp: Date.now() });
     });
 
-    // Stop
     this.app.post('/api/stop', (req: Request, res: Response) => {
       res.json({ success: true, message: 'Engine stopped', timestamp: Date.now() });
     });
 
-    // Metrics
     this.app.get('/api/metrics', (req: Request, res: Response) => {
       res.json({
         totalTrades: 0,
@@ -77,7 +71,38 @@ class APIServer {
       });
     });
 
-    // 404
+    this.app.get('/api/strategies', (req: Request, res: Response) => {
+      res.json({
+        total: 0,
+        strategies: [],
+        timestamp: Date.now()
+      });
+    });
+
+    this.app.get('/api/prices', (req: Request, res: Response) => {
+      res.json({
+        total: 0,
+        prices: [],
+        timestamp: Date.now()
+      });
+    });
+
+    this.app.get('/api/flashloans', (req: Request, res: Response) => {
+      res.json({
+        total: 0,
+        opportunities: [],
+        timestamp: Date.now()
+      });
+    });
+
+    this.app.get('/api/wallet/balance', (req: Request, res: Response) => {
+      res.json({
+        address: config.wallet.privateKey ? 'Connected' : 'Not configured',
+        balances: {},
+        timestamp: Date.now()
+      });
+    });
+
     this.app.use((req: Request, res: Response) => {
       res.status(404).json({
         error: 'Not Found',
@@ -86,7 +111,6 @@ class APIServer {
       });
     });
 
-    // Error handler
     this.app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       logger.error('Server error:', err);
       res.status(500).json({
@@ -128,9 +152,7 @@ class APIServer {
         logger.info(`  ✓ Health: http://localhost:${port}/health`);
         logger.info('='.repeat(70));
 
-        // Setup WebSocket
         this.setupWebSocket();
-        
         resolve();
       });
     });
