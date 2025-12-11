@@ -1,11 +1,4 @@
 {
-  "scripts": {
-    "clean": "rm -rf dist",
-    "prebuild": "npm run clean && npm run debug-files",
-    "debug-files": "echo '=== LISTING PROJECT FILES ===' && ls -la && echo '=== CHECKING SRC FOLDER ===' && ls -la src/ || echo 'ERROR: src/ folder not found!'",
-    "build": "tsc",
-    "start": "node dist/index.js"
-  },
   "name": "massive-trading-engine",
   "version": "1.0.0",
   "description": "Production MEV Trading Engine",
@@ -16,7 +9,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "prebuild": "npm run clean",
+    "prebuild": "npm run clean && npm run list-files",
+    "list-files": "echo '=== ROOT FILES ===' && ls -la && echo '=== SRC FOLDER ===' && ls -la src/ && echo '=== SRC CONTENTS ===' && find src -type f",
     "build": "tsc",
     "start": "node dist/index.js"
   },
