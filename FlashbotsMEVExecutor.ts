@@ -21,13 +21,19 @@ export class FlashbotsMEVExecutor {
     private nonce: number | undefined;
 
     constructor(private config: ExecutorConfig) {
-        this.provider = new providers.JsonRpcProvider(config.rpcUrl);
+        // === CRITICAL FIX FOR "could not detect network" ERROR ===
+        // We explicitly pass the network/Chain ID (1 for mainnet) to the provider
+        // to prevent Ethers from failing the automatic network detection.
+        this.provider = new providers.JsonRpcProvider(config.rpcUrl, 1);
+        // ==========================================================
+        
         this.wallet = new Wallet(config.walletPrivateKey, this.provider);
     }
 
     public async initialize() {
         console.log(`[INFO] Wallet Address: ${this.wallet.address}`);
-        // Simple call to check RPC connection (fixes 403/429 errors)
+        
+        // This line is where the error was triggered, but the fix is in the constructor.
         await this.provider.getBlockNumber(); 
         console.log("[INFO] Successful connection to RPC provider.");
 
@@ -36,12 +42,12 @@ export class FlashbotsMEVExecutor {
         // The Signer key is used ONLY for authentication and reputation
         const authSigner = new Wallet(this.config.flashbots.relaySignerKey, this.provider);
         
-        // **CRITICAL FIX: Correctly declared statement to fix TS1128 and 401 error**
+        // CRITICAL FIX for 401 UNAUTHORIZED: Explicitly passing "mainnet"
         this.flashbotsProvider = await FlashbotsBundleProvider.create(
             this.provider,                 
             authSigner,                    
             this.config.flashbots.relayUrl,
-            "mainnet" // Explicit fix for 401 Unauthorized error
+            "mainnet" 
         );
 
         this.nonce = await this.provider.getTransactionCount(this.wallet.address);
