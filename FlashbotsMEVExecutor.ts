@@ -1,4 +1,4 @@
-// FlashbotsMEVExecutor.ts (FINAL, BUILD-PASSING VERSION)
+// FlashbotsMEVExecutor.ts (BUILD-PASSING, FINAL VERSION)
 
 import { 
     ethers, 
@@ -14,7 +14,7 @@ import {
 import * as dotenv from 'dotenv';
 import { logger } from './logger';
 
-export class FlashbotsMEVExecutor {
+export class FlashbotsMEVExecutor { // <-- Class opening brace
     private wallet: Wallet;
     private authSigner: Wallet;
     private provider: ethers.providers.JsonRpcProvider; 
@@ -81,15 +81,15 @@ export class FlashbotsMEVExecutor {
             targetBlock
         );
         
-        // Final Fix: Explicitly cast RelayResponseError to FlashbotsTransactionResponse 
-        // to resolve TS2739 compilation error.
+        // Final Fix: Use double-cast to resolve TS2352
         if ('error' in bundleSubmission) {
             logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`); 
-            // NEW FIX: Cast through 'unknown' first to resolve TS2352
-return bundleSubmission as unknown as FlashbotsTransactionResponse;
-            
+            // TS2352 Fix: Cast through 'unknown' first.
+            return bundleSubmission as unknown as FlashbotsTransactionResponse; 
+        }
+
         // TypeScript correctly knows this is a successful FlashbotsTransaction
         logger.info(`Bundle submission successful: ${bundleSubmission.bundleHash}`);
         return bundleSubmission; 
-    }
-}
+    } // <-- Missing closing brace for sendBundle method (Fix for TS1005)
+} // <-- Missing closing brace for FlashbotsMEVExecutor class (Fix for TS1005)
