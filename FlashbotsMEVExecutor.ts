@@ -1,4 +1,4 @@
-// FlashbotsMEVExecutor.ts (FINAL FIXED VERSION)
+// FlashbotsMEVExecutor.ts (FINAL, BUILD-PASSING VERSION)
 
 import { 
     ethers, 
@@ -35,7 +35,7 @@ export class FlashbotsMEVExecutor {
         logger.info(`[Executor] Initialized Wallet: ${this.wallet.address}`);
     }
 
-    // Static async factory method to handle asynchronous initialization
+    // Static async factory method to handle asynchronous FlashbotsProvider.create()
     public static async create(
         privateKey: string, 
         authSignerKey: string, 
@@ -66,7 +66,8 @@ export class FlashbotsMEVExecutor {
         }
     }
     
-    public async sendBundle(signedTxs: string[], targetBlock: number) {
+    // The method signature returns Promise<FlashbotsTransactionResponse>, which is a union type.
+    public async sendBundle(signedTxs: string[], targetBlock: number): Promise<FlashbotsTransactionResponse> {
         logger.debug(`Attempting to send bundle targeting block ${targetBlock}`);
         
         // Correctly format raw strings into the required Flashbots object structure
@@ -74,18 +75,23 @@ export class FlashbotsMEVExecutor {
             signedTransaction
         }));
 
-        const bundleSubmission: FlashbotsTransactionResponse = await this.flashbotsProvider.sendBundle(
+        // CRITICAL FIX: Removed explicit type annotation here to allow TypeScript to infer 
+        // the union type and enable correct type narrowing later.
+        const bundleSubmission = await this.flashbotsProvider.sendBundle( 
             flashbotsTransactions,
             targetBlock
         );
-
-        // Check for submission failure before accessing bundleHash
+        
+        // FIX: The 'error' in submission check correctly narrows the type.
+        // This resolves TS2322 and TS18046.
         if ('error' in bundleSubmission) {
-            logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`);
-            return bundleSubmission;
+            // TypeScript now knows bundleSubmission is a RelayResponseError
+            logger.error(`Bundle submission failed: ${bundleSubmission.error.message}`); 
+            return bundleSubmission; 
         }
 
+        // If we reach here, TypeScript knows bundleSubmission is a successful FlashbotsTransaction 
         logger.info(`Bundle submission successful: ${bundleSubmission.bundleHash}`);
-        return bundleSubmission;
+        return bundleSubmission; 
     }
 }
