@@ -2,43 +2,39 @@
 
 import { ethers } from 'ethers';
 import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
-import logger from '../utils/logger';
-import { NonceManager } from './NonceManager';
-import { RawMEVOpportunity } from '../types';
+import logger from '../utils/logger'; // Corrected path
+import { NonceManager } from './NonceManager'; // Corrected path (sibling file)
+import { RawMEVOpportunity } from '../types'; // Corrected path
 
 export class FlashbotsMEVExecutor {
-    // 🚨 FIX 1: Declare all private properties before the constructor
+    // Declared properties
     private provider: ethers.JsonRpcProvider;
     private wallet: ethers.Wallet;
     private flashbotsProvider: FlashbotsBundleProvider | null = null;
     private nonceManager: NonceManager;
     private uniswapRouter: string;
-    
-    // 🚨 FIX 2: Correctly define the constructor block
+
+    // Corrected constructor syntax
     constructor(
         rpcUrl: string,
         privateKey: string,
-        flashbotsSignerKey: string,
+        flashbotsSignerKey: string, // Not used directly here, but necessary for constructor
         helperContract: string,
         uniswapRouter: string,
         wethAddress: string
     ) {
-        // Initialize properties inside the constructor
         this.provider = new ethers.JsonRpcProvider(rpcUrl);
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.uniswapRouter = uniswapRouter;
-        // The Flashbots Signer Key is not used here but in the FlashbotsBundleProvider.create method below (in initialize)
         this.nonceManager = new NonceManager(this.provider, this.wallet.address);
     }
 
     async initialize(): Promise<void> {
         logger.info('Initializing Flashbots executor...');
         try {
-            // NOTE: The FlashbotsSignerKey is handled within the initialize method
             this.flashbotsProvider = await FlashbotsBundleProvider.create(
                 this.provider,
                 this.wallet
-                // The signer key is often passed here or implicitly derived from the wallet in some library versions
             );
             await this.nonceManager.initialize();
             logger.info('Flashbots executor ready');
@@ -57,10 +53,8 @@ export class FlashbotsMEVExecutor {
         try {
             const [frontRunNonce, backRunNonce] = this.nonceManager.getNextNoncePair();
 
-            // ... (rest of the executeSandwich logic, including the Flashbots type fix from last step) ...
-            
             const bundle = [
-                // ... (Front-run transaction)
+                // Transactions defined here
                 {
                     transaction: {
                         to: this.uniswapRouter,
@@ -71,9 +65,7 @@ export class FlashbotsMEVExecutor {
                     },
                     signer: this.wallet
                 },
-                // ... (Target transaction)
                 { signedTransaction: opportunity.targetTxRaw },
-                // ... (Back-run transaction)
                 {
                     transaction: {
                         to: this.uniswapRouter,
@@ -89,12 +81,13 @@ export class FlashbotsMEVExecutor {
             const blockNumber = await this.provider.getBlockNumber();
             const bundleSubmission = await this.flashbotsProvider.sendBundle(bundle, blockNumber + 1);
 
+            // FIX for TS2339: Check for error before calling .wait()
             if ('error' in bundleSubmission) {
                 logger.error('Flashbots submission failed:', (bundleSubmission.error as any).message);
                 await this.nonceManager.handleBundleFailure();
                 return false;
             }
-            
+
             const waitResponse = await bundleSubmission.wait();
 
             if (waitResponse === 0) {
