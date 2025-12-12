@@ -12,6 +12,9 @@ import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
+// ** NEW CRITICAL IMPORT: The function to offload heavy simulation work to the CPU worker pool **
+import { executeStrategyTask } from './WorkerPool'; 
+
 // Global constants
 const RECONNECT_DELAY_MS = 5000; 
 const CHAIN_ID = 1; // 1 for Ethereum Mainnet
@@ -166,15 +169,49 @@ export class ProductionMEVBot {
         if (!this.executor) return; 
 
         try {
-            logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
+            logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Submitting to worker pool...`);
             
             // ----------------------------------------------------------------------
-            // !!! CORE MEV TRADING LOGIC IMPLEMENTATION AREA !!!
-            // 1. const fees = await this.getCompetitiveFees();
-            // 2. const pendingTx = await this.httpProvider.getTransaction(txHash);
-            // 3. Run simulation to check profitability.
-            // 4. Submit bundle if profitable.
+            // !!! CORE MEV TRADING LOGIC IMPLEMENTATION AREA - NOW OFFLOADED !!!
+            // The main thread quickly gathers necessary info and passes it to the pool.
             // ----------------------------------------------------------------------
+            
+            // 1. Gather fast network data
+            const pendingTx = await this.httpProvider.getTransaction(txHash);
+            const fees = await this.getCompetitiveFees();
+            
+            if (!pendingTx || !pendingTx.to || !pendingTx.data || !fees) return;
+
+            // 2. Offload the heavy simulation (1500 strategies) to the worker pool.
+            const taskData = { 
+                txHash, 
+                // We send only the necessary data to the worker
+                pendingTx: { hash: pendingTx.hash, data: pendingTx.data, to: pendingTx.to, from: pendingTx.from }, 
+                fees: { 
+                    maxFeePerGas: fees.maxFeePerGas.toString(), 
+                    maxPriorityFeePerGas: fees.maxPriorityFeePerGas.toString() 
+                } 
+            };
+            
+            // This is non-blocking and enables multi-core processing of strategies
+            const simulationResult = await executeStrategyTask(taskData);
+            
+            // 3. Execution based on worker's result
+            if (simulationResult && simulationResult.netProfit) {
+                logger.info(`[PROFIT] Worker found profit! ${ethers.utils.formatEther(simulationResult.netProfit)} ETH via ${simulationResult.strategyId}`);
+
+                // The worker generates the fully signed transaction data
+                const signedMevTx = simulationResult.signedTransaction; 
+
+                // Bundle structure: [Your Front-run/Sandwich TX, Victim's TX]
+                const bundle = [ 
+                    { signedTransaction: signedMevTx },
+                    { hash: pendingTx.hash } // We send the hash of the victim's transaction
+                ];
+
+                await this.executor.sendBundle(bundle, await this.httpProvider.getBlockNumber() + 1);
+                logger.info(`[SUBMITTED] Bundle for ${txHash.substring(0, 10)}...`);
+            }
             
         } catch (error) {
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
