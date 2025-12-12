@@ -12,7 +12,7 @@ import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
-// ** NEW CRITICAL IMPORT: The function to offload heavy simulation work to the CPU worker pool **
+// ** CRITICAL IMPORT: The function to offload heavy simulation work to the CPU worker pool **
 import { executeStrategyTask } from './WorkerPool'; 
 
 // Global constants
@@ -171,11 +171,6 @@ export class ProductionMEVBot {
         try {
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Submitting to worker pool...`);
             
-            // ----------------------------------------------------------------------
-            // !!! CORE MEV TRADING LOGIC IMPLEMENTATION AREA - NOW OFFLOADED !!!
-            // The main thread quickly gathers necessary info and passes it to the pool.
-            // ----------------------------------------------------------------------
-            
             // 1. Gather fast network data
             const pendingTx = await this.httpProvider.getTransaction(txHash);
             const fees = await this.getCompetitiveFees();
@@ -185,7 +180,7 @@ export class ProductionMEVBot {
             // 2. Offload the heavy simulation (1500 strategies) to the worker pool.
             const taskData = { 
                 txHash, 
-                // We send only the necessary data to the worker
+                // We send only the necessary data to the worker (Worker threads only serialize basic types like strings)
                 pendingTx: { hash: pendingTx.hash, data: pendingTx.data, to: pendingTx.to, from: pendingTx.from }, 
                 fees: { 
                     maxFeePerGas: fees.maxFeePerGas.toString(), 
@@ -201,7 +196,7 @@ export class ProductionMEVBot {
                 logger.info(`[PROFIT] Worker found profit! ${ethers.utils.formatEther(simulationResult.netProfit)} ETH via ${simulationResult.strategyId}`);
 
                 // The worker generates the fully signed transaction data
-                const signedMevTx = simulationResult.signedTransaction; 
+                const signedMevTx: string = simulationResult.signedTransaction as string; // Fixes TS2345
 
                 // Bundle structure: [Your Front-run/Sandwich TX, Victim's TX]
                 const bundle = [ 
