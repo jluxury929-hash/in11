@@ -9,13 +9,12 @@
     "prebuild": "npm run clean",
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"  // <--- ADDED DEVELOPMENT SCRIPT
+    "dev": "ts-node src/index.ts" 
   },
   "dependencies": {
     "axios": "^1.6.8",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.2"
-    // NOTE: Flashbots library dependency is assumed here
     // "@flashbots/ethers-provider-bundle": "^0.6.0" 
   },
   "devDependencies": {
