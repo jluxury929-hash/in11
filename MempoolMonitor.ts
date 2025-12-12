@@ -1,26 +1,39 @@
-// MempoolMonitor.ts
-import { ethers } from 'ethers'; // FIX: Import global ethers for v5 syntax
-import { logger } from './logger';
+// src/MempoolMonitor.ts
+import { ethers, providers } from 'ethers';
+import { logger } from './logger.js'; // FIX: .js extension
+
+// NOTE: This class is often integrated directly into ProductionMEVBot (as we did previously),
+// but here is the corrected file if it is used separately.
 
 export class MempoolMonitor {
-    // FIX: Use Ethers v5 provider type
-    private wsProvider: ethers.providers.WebSocketProvider; 
-    private pendingTxHandler: (txHash: string) => void;
+    private provider: providers.WebSocketProvider;
 
-    // FIX: Constructor uses Ethers v5 provider type
-    constructor(wsProvider: ethers.providers.WebSocketProvider, handler: (txHash: string) => void) {
-        this.wsProvider = wsProvider;
-        this.pendingTxHandler = handler;
-        this.startMonitoring();
+    constructor(wssUrl: string) {
+        this.provider = new providers.WebSocketProvider(wssUrl);
+        this.setupListeners();
     }
 
-    private startMonitoring() {
-        this.wsProvider.on('pending', this.pendingTxHandler);
-        logger.info("Mempool monitoring active.");
+    private setupListeners(): void {
+        this.provider.on('pending', (txHash: string) => {
+            // In a real application, this would pipe the hash to the worker pool manager
+            logger.debug(`[MONITOR] Received pending transaction hash: ${txHash.substring(0, 10)}...`);
+        });
+
+        this.provider.on('error', (error) => {
+            logger.error(`[MONITOR] Provider error: ${error.message}`);
+        });
+
+        this.provider.on('open', () => {
+            logger.info("[MONITOR] WebSocket connection open and monitoring.");
+        });
     }
 
-    public stopMonitoring() {
-        this.wsProvider.off('pending', this.pendingTxHandler);
-        logger.warn("Mempool monitoring stopped.");
+    public stop(): void {
+        this.provider.removeAllListeners();
+        // Use destroy for clean socket termination
+        if (typeof (this.provider as any).destroy === 'function') {
+            (this.provider as any).destroy(); 
+        }
+        logger.info("[MONITOR] Monitoring stopped.");
     }
 }
