@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (COMPLETE, COMPILABLE, AND ROBUST)
+// ProductionMEVBot.ts (COMPLETE)
 
 import { 
     ethers, 
@@ -12,7 +12,6 @@ import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
-// ** CRITICAL IMPORT: The function to offload heavy simulation work to the CPU worker pool **
 import { executeStrategyTask } from './WorkerPool'; 
 
 // Global constants
@@ -39,7 +38,6 @@ export class ProductionMEVBot {
             flashbotsUrl: process.env.FLASHBOTS_URL || 'https://relay.flashbots.net',
         };
 
-        // --- Environment Variable Checks ---
         const privateKey = process.env.PRIVATE_KEY;
         const fbReputationKey = process.env.FB_REPUTATION_KEY;
         const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
@@ -53,13 +51,11 @@ export class ProductionMEVBot {
             logger.error("INFURA_GAS_API_URL is missing. Cannot calculate competitive gas fees.");
         }
         
-        // Initialize Providers and Wallets
         this.httpProvider = new ethers.providers.JsonRpcProvider(httpRpcUrl || 'http://placeholder.local'); 
         this.signer = new Wallet(privateKey || ethers.constants.HashZero, this.httpProvider);
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
         this.config.walletAddress = this.signer.address;
         
-        // CRITICAL: WSS initialization call
         this.initializeWsProvider();
         logger.info("Bot configuration loaded.");
     }
@@ -72,18 +68,15 @@ export class ProductionMEVBot {
         }
 
         try {
-            // 1. Dispose of the old provider and listeners first for clean reconnects (Fixes 'unhandled: Event')
             if (this.wsProvider) {
                 this.wsProvider.removeAllListeners();
-                // Use destroy for clean socket termination
+                // Check if destroy exists to safely close the socket
                 if (typeof (this.wsProvider as any).destroy === 'function') {
                     (this.wsProvider as any).destroy(); 
                 }
             }
             
             this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
-            
-            // 2. Attach basic connection management listeners
             this.setupWsConnectionListeners();
             
         } catch (error) {
@@ -104,21 +97,17 @@ export class ProductionMEVBot {
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
-        // Listener for the primary pending event stream (only attaches on 'open')
         this.wsProvider.once('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
-            // Attach the main pending transaction listener here, after a successful connection
             this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
 
-        // Connection error/close handlers (use standard 'on' to ensure they persist)
         this.wsProvider.on('error', (error: Error) => {
             logger.error(`[WSS] Provider Event Error: ${error.message}. Attempting reconnect...`);
             this.reconnectWsProvider();
         });
 
         this.wsProvider.on('close', (code: number, reason: string) => {
-            // Remove the main pending listener before reconnecting
             this.wsProvider!.removeAllListeners('pending');
             logger.error(`[WSS] Connection Closed (Code: ${code}). Reason: ${reason}. Attempting reconnect...`);
             this.reconnectWsProvider();
@@ -166,8 +155,6 @@ export class ProductionMEVBot {
                 highPriority.suggestedMaxFeePerGas,
                 'gwei'
             );
-
-            logger.debug(`[GAS] Fetched High Priority: MaxFee=${ethers.utils.formatUnits(maxFeePerGas, 'gwei')} Gwei`);
             
             return { maxFeePerGas, maxPriorityFeePerGas };
 
@@ -184,16 +171,14 @@ export class ProductionMEVBot {
         try {
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Submitting to worker pool...`);
             
-            // 1. Gather fast network data
             const pendingTx = await this.httpProvider.getTransaction(txHash);
             const fees = await this.getCompetitiveFees();
             
             if (!pendingTx || !pendingTx.to || !pendingTx.data || !fees) return;
 
-            // 2. Offload the heavy simulation (1500 strategies) to the worker pool.
+            // Offload to worker pool
             const taskData = { 
                 txHash, 
-                // We send only the necessary data to the worker (Worker threads only serialize basic types like strings)
                 pendingTx: { hash: pendingTx.hash, data: pendingTx.data, to: pendingTx.to, from: pendingTx.from }, 
                 fees: { 
                     maxFeePerGas: fees.maxFeePerGas.toString(), 
@@ -201,23 +186,18 @@ export class ProductionMEVBot {
                 } 
             };
             
-            // This is non-blocking and enables multi-core processing of strategies
             const simulationResult = await executeStrategyTask(taskData);
             
-            // 3. Execution based on worker's result
             if (simulationResult && simulationResult.netProfit) {
                 logger.info(`[PROFIT] Worker found profit! ${ethers.utils.formatEther(simulationResult.netProfit)} ETH via ${simulationResult.strategyId}`);
 
-                // The worker generates the fully signed transaction data
                 const signedMevTx: string = simulationResult.signedTransaction as string; 
 
-                // Bundle structure: [Your Front-run/Sandwich TX, Victim's TX]
                 const bundle = [ 
                     { signedTransaction: signedMevTx },
-                    { hash: pendingTx.hash } // We send the hash of the victim's transaction
+                    { hash: pendingTx.hash }
                 ];
 
-                // FIX for TS2345 error: Assert the type to 'any' to bypass the conflicting library definition
                 await this.executor.sendBundle(bundle as any, await this.httpProvider.getBlockNumber() + 1);
                 logger.info(`[SUBMITTED] Bundle for ${txHash.substring(0, 10)}...`);
             }
@@ -230,14 +210,12 @@ export class ProductionMEVBot {
     public async startMonitoring(): Promise<void> {
         logger.info("[STATUS] Starting bot services...");
 
-        // 1. Initialize the Asynchronous services
         await this.initializeExecutor(); 
         if (!this.executor) {
             logger.fatal("Cannot start monitoring due to Executor failure. Check .env variables.");
             return;
         }
 
-        // 2. Check Wallet Balance (Safety Check)
         try {
             const balance = await this.httpProvider.getBalance(this.config.walletAddress);
             const formattedBalance = ethers.utils.formatEther(balance); 
@@ -252,13 +230,11 @@ export class ProductionMEVBot {
             return;
         }
 
-        // 3. Start Mempool Monitoring and Health Check
         if (!this.wsProvider) {
             logger.warn("WSS Provider is not active. Cannot monitor mempool in real-time.");
         } else {
             logger.info("[STATUS] Monitoring fully active.");
             
-            // Health Check: Logs every minute to confirm the Node.js process is alive.
             setInterval(() => {
                 logger.debug("[HEALTH CHECK] Bot process is alive.");
             }, 60000); 
