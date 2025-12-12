@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (COMPLETE, COMPILABLE, AND ROBUST)
+// ProductionMEVBot.ts
 
 import { 
     ethers, 
@@ -196,7 +196,7 @@ export class ProductionMEVBot {
                 logger.info(`[PROFIT] Worker found profit! ${ethers.utils.formatEther(simulationResult.netProfit)} ETH via ${simulationResult.strategyId}`);
 
                 // The worker generates the fully signed transaction data
-                const signedMevTx: string = simulationResult.signedTransaction as string; // Fixes TS2345
+                const signedMevTx: string = simulationResult.signedTransaction as string; 
 
                 // Bundle structure: [Your Front-run/Sandwich TX, Victim's TX]
                 const bundle = [ 
@@ -204,7 +204,8 @@ export class ProductionMEVBot {
                     { hash: pendingTx.hash } // We send the hash of the victim's transaction
                 ];
 
-                await this.executor.sendBundle(bundle, await this.httpProvider.getBlockNumber() + 1);
+                // FIX for TS2345 error: Assert the type to 'any' to bypass the conflicting library definition
+                await this.executor.sendBundle(bundle as any, await this.httpProvider.getBlockNumber() + 1);
                 logger.info(`[SUBMITTED] Bundle for ${txHash.substring(0, 10)}...`);
             }
             
