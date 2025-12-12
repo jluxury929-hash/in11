@@ -1,9 +1,10 @@
-// ExecutionWorker.ts
+// ExecutionWorker.ts (FIXED TS18047 errors)
 import { parentPort, workerData } from 'node:worker_threads';
 import { ethers, BigNumber } from 'ethers'; 
 
 // This function runs on a separate CPU core and will not block the main mempool feed
-parentPort.on('message', async (message: { type: string, data: any }) => {
+// FIX: Add '!' to assert parentPort is not null
+parentPort!.on('message', async (message: { type: string, data: any }) => {
     if (message.type === 'task') {
         const { txHash, pendingTx, fees } = message.data;
         
@@ -15,13 +16,10 @@ parentPort.on('message', async (message: { type: string, data: any }) => {
             const maxPriorityFeePerGas = BigNumber.from(fees.maxPriorityFeePerGas);
             
             // --- 1. RUN ALL 1500 STRATEGIES SIMULTANEOUSLY HERE ---
-            // The logic below simulates the complex calculation required for 1500 strategies.
-            // In a real application, this is where highly optimized C++ or Rust code would be invoked.
             
             // Simulate heavy compute:
             for (let i = 0; i < 1500; i++) {
                 // Placeholder for highly optimized EVM state access, pathfinding, and profit simulation
-                // This is the step that takes time and justifies the worker pool.
             }
             
             // --- 2. PROFIT CALCULATION (Placeholder) ---
@@ -38,10 +36,6 @@ parentPort.on('message', async (message: { type: string, data: any }) => {
             if (netProfitWei.gt(ethers.utils.parseEther("0.05"))) { // 0.05 ETH threshold
                 
                 // --- 4. SIGN TRANSACTION (Mocking) ---
-                // In a real worker, you would need to initialize an ethers Wallet 
-                // with the private key (passed via environment) to sign the transaction.
-                
-                // For demonstration, we use a placeholder signed transaction string:
                 const mockSignedTransaction = `0xSIGNED_TX_FOR_${pendingTx.hash.substring(2, 8)}`; 
                 
                 simulationResult = { 
@@ -56,7 +50,7 @@ parentPort.on('message', async (message: { type: string, data: any }) => {
             // Result remains null
         }
 
-        // Send the result back to the main thread
-        parentPort.postMessage({ result: simulationResult });
+        // FIX: Add '!' to assert parentPort is not null
+        parentPort!.postMessage({ result: simulationResult });
     }
 });
