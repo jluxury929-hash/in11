@@ -12,7 +12,7 @@ import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
-// Global constants must be defined outside the class
+// Global constants
 const RECONNECT_DELAY_MS = 5000; 
 const CHAIN_ID = 1; // 1 for Ethereum Mainnet
 
@@ -139,7 +139,6 @@ export class ProductionMEVBot {
             const url = `${this.gasApiUrl}/networks/${CHAIN_ID}/suggestedGasFees`;
             const response = await axios.get(url);
             
-            // Use the 'high' priority recommendation for MEV competition
             const highPriority = response.data.high;
 
             const maxPriorityFeePerGas = ethers.utils.parseUnits(
@@ -171,14 +170,11 @@ export class ProductionMEVBot {
             
             // ----------------------------------------------------------------------
             // !!! CORE MEV TRADING LOGIC IMPLEMENTATION AREA !!!
-            // This is where you would call getCompetitiveFees() and build/submit the bundle.
+            // 1. const fees = await this.getCompetitiveFees();
+            // 2. const pendingTx = await this.httpProvider.getTransaction(txHash);
+            // 3. Run simulation to check profitability.
+            // 4. Submit bundle if profitable.
             // ----------------------------------------------------------------------
-
-            // Example call:
-            // const fees = await this.getCompetitiveFees();
-            // if (!fees) return;
-
-            // ... (Your simulation and execution logic follows)
             
         } catch (error) {
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
