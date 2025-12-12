@@ -1,9 +1,8 @@
-// ExecutionWorker.ts (FIXED TS18047 errors)
+// ExecutionWorker.ts
 import { parentPort, workerData } from 'node:worker_threads';
 import { ethers, BigNumber } from 'ethers'; 
 
-// This function runs on a separate CPU core and will not block the main mempool feed
-// FIX: Add '!' to assert parentPort is not null
+// Non-null assertion is necessary here for strict TypeScript compilation
 parentPort!.on('message', async (message: { type: string, data: any }) => {
     if (message.type === 'task') {
         const { txHash, pendingTx, fees } = message.data;
@@ -12,30 +11,23 @@ parentPort!.on('message', async (message: { type: string, data: any }) => {
         let profitInWei = BigNumber.from(0);
 
         try {
-            // Re-convert string BigNumber to BigNumber object
             const maxPriorityFeePerGas = BigNumber.from(fees.maxPriorityFeePerGas);
             
-            // --- 1. RUN ALL 1500 STRATEGIES SIMULTANEOUSLY HERE ---
-            
-            // Simulate heavy compute:
+            // --- Placeholder for 1500 Strategy Simulation ---
             for (let i = 0; i < 1500; i++) {
-                // Placeholder for highly optimized EVM state access, pathfinding, and profit simulation
+                // Heavy, CPU-intensive simulation code goes here.
             }
             
-            // --- 2. PROFIT CALCULATION (Placeholder) ---
+            // --- PROFIT CALCULATION (MOCK) ---
+            profitInWei = ethers.utils.parseEther("0.1"); 
             
-            // Placeholder: Assume one of the 1500 strategies (e.g., a Sandwich) found a profit
-            profitInWei = ethers.utils.parseEther("0.1"); // Gross Profit: 0.1 ETH
-            
-            // Assume the MEV transaction needs a gas limit of 500,000
             const gasLimit = BigNumber.from(500000);
             const gasCost = maxPriorityFeePerGas.mul(gasLimit); 
             const netProfitWei = profitInWei.sub(gasCost);
             
-            // 3. Check Threshold
-            if (netProfitWei.gt(ethers.utils.parseEther("0.05"))) { // 0.05 ETH threshold
+            if (netProfitWei.gt(ethers.utils.parseEther("0.05"))) {
                 
-                // --- 4. SIGN TRANSACTION (Mocking) ---
+                // --- SIGN TRANSACTION (MOCK) ---
                 const mockSignedTransaction = `0xSIGNED_TX_FOR_${pendingTx.hash.substring(2, 8)}`; 
                 
                 simulationResult = { 
@@ -47,10 +39,9 @@ parentPort!.on('message', async (message: { type: string, data: any }) => {
             
         } catch (error) {
             console.error(`[WORKER SIMULATION CRASH] Strategy failed for ${txHash}`, error);
-            // Result remains null
         }
 
-        // FIX: Add '!' to assert parentPort is not null
+        // Send the result back to the main thread
         parentPort!.postMessage({ result: simulationResult });
     }
 });
