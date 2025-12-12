@@ -106,6 +106,12 @@ export class ProductionMEVBot {
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
+  
+    // ProductionMEVBot.ts (Inside the handler)
+async handlePendingTransaction(txHash: string) {
+    // *** ADD THIS LINE ***
+    this.logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}...`); 
+    // ----------------------
 
     public async startMonitoring(): Promise<void> {
         logger.info("[STATUS] Starting bot services...");
