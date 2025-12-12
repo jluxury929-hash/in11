@@ -1,8 +1,8 @@
 // src/FlashbotsMEVExecutor.ts
 
 import { 
-    FlashbotsBundleProvider, 
-    TransactionBundle // <-- This is the problematic type import
+    FlashbotsBundleProvider
+    // NOTE: TransactionBundle is NOT exported by the library; it must be removed.
 } from '@flashbots/ethers-provider-bundle'; 
 import { 
     ethers, 
@@ -12,17 +12,7 @@ import {
 
 import { logger } from './logger.js';
 
-// ** FIX 1: Define the expected bundle type locally or use the type from the library. **
-// Assuming the core bundle structure, we will use the type definition provided by the Flashbots library.
-// We must update the import and usage.
-// Let's use the actual type exported by the library, which is usually named IFlashbotsTransactionBundle or similar.
-// For robustness, we will import what the library uses.
-
-// The correct type import is usually TransactionRequest or just using the array syntax.
-// We will replace the problematic import line:
-// import { TransactionBundle } from '@flashbots/ethers-provider-bundle';
-
-// The input to sendBundle is an array of objects. We will define a simple, robust type for clarity.
+// Define the required type structure for the bundle contents, resolving the TS2305 error.
 type MevBundle = Array<{ signedTransaction: string } | { hash: string }>;
 
 
@@ -50,7 +40,7 @@ export class FlashbotsMEVExecutor {
         return new FlashbotsMEVExecutor(provider, flashbotsProvider);
     }
 
-    // Use our new local type alias for clarity and to resolve TS2305.
+    // Use the custom MevBundle type alias
     async sendBundle(
         bundle: MevBundle, 
         blockNumber: number
@@ -58,8 +48,7 @@ export class FlashbotsMEVExecutor {
         logger.info(`[Flashbots] Submitting bundle for block ${blockNumber}...`);
         
         try {
-            // Note: We cast bundle to 'any' here as the Flashbots library often has inconsistent typing
-            // between versions and the simple structure we are using.
+            // Cast to 'any' for robustness, as Flashbots library typing can be inconsistent.
             const result = await this.flashbotsProvider.sendBundle(bundle as any, blockNumber);
 
             if ('error' in result) {
@@ -74,7 +63,7 @@ export class FlashbotsMEVExecutor {
             if (waitResponse === 0) {
                 logger.warn(`[Flashbots] Bundle was not included in block ${blockNumber}.`);
             } else {
-                // ** FIX 2: Change logger.success to logger.info **
+                // Ensure only existing logger methods (like info) are used.
                 logger.info(`[Flashbots] Bundle successfully included in block ${blockNumber}!`);
             }
 
