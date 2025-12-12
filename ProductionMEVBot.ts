@@ -78,7 +78,6 @@ export class ProductionMEVBot {
         }
     }
 
-    // FIX: Attach 'pending' inside 'open' to guarantee execution order.
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
@@ -92,26 +91,22 @@ export class ProductionMEVBot {
             // CRITICAL FIX: Attach pending listener here.
             this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
-        
-        // Removed standalone this.wsProvider.on('pending',...)
     }
 
-    private handlePendingTransaction(txHash: string): void {
+    // FIX: Combined the two versions and made it async for future use
+    private async handlePendingTransaction(txHash: string): Promise<void> {
         try {
-            // All processing logic MUST be inside this try/catch block.
-            logger.debug(`[Pending TX] Received hash: ${txHash}. Processing...`);
+            // *** NEW LOG LINE IMPLEMENTED ***
+            logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
+            
+            // NOTE: If you need to make asynchronous calls (like getTransaction) 
+            // the method must be 'async' as it is now.
             
         } catch (error) {
             // Prevents runtime crashes from escaping event loop.
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
-  
-    // ProductionMEVBot.ts (Inside the handler)
-async handlePendingTransaction(txHash: string) {
-    // *** ADD THIS LINE ***
-    this.logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}...`); 
-    // ----------------------
 
     public async startMonitoring(): Promise<void> {
         logger.info("[STATUS] Starting bot services...");
