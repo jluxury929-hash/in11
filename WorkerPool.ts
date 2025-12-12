@@ -12,7 +12,6 @@ const taskQueue: {
 }[] = [];
 let nextWorker = 0;
 
-// Declaration of the function to be exported later
 let _executeStrategyTask: (taskData: any) => Promise<any>;
 
 if (isMainThread) {
@@ -21,13 +20,12 @@ if (isMainThread) {
     // Initialize the worker pool
     for (let i = 0; i < NUM_WORKERS; i++) {
         const worker = new Worker('./ExecutionWorker.ts', {
-            // This is crucial for running TS files directly in Node workers during development
+            // Necessary for running TS files in workers during development
             execArgv: /\/ts-node$/.test(process.argv[0]) ? ['--require', 'ts-node/register'] : undefined, 
             workerData: { workerId: i }
         });
 
         worker.on('message', (message) => {
-            // Find the task that initiated this message
             const task = taskQueue.shift();
             if (task) {
                 task.resolve(message.result);
@@ -44,7 +42,6 @@ if (isMainThread) {
 
         worker.on('exit', (code) => {
             console.error(`Worker ${worker.threadId} exited with code ${code}.`);
-            // Production code should have proper recreation logic here
         });
 
         workers.push(worker);
@@ -63,9 +60,8 @@ if (isMainThread) {
     }
 
 } else {
-    // This file is executed as a worker (ExecutionWorker.ts handles the logic)
-    // No code is executed in the else block in this file structure
+    // The worker thread logic is in ExecutionWorker.ts
 }
 
-// Corrected Export: This resolves the TS2305 and TS1184 errors
+// Corrected Export
 export const executeStrategyTask = _executeStrategyTask!;
