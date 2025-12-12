@@ -1,12 +1,18 @@
 // WorkerPool.ts
-import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 import * as os from 'os';
 
 // Use a number of workers equal to the number of CPU cores
 const NUM_WORKERS = os.cpus().length;
 const workers: Worker[] = [];
-const taskQueue: { data: any, resolve: (result: any) => void, reject: (error: Error) => void }[] = [];
+const taskQueue: { 
+    data: any, 
+    resolve: (result: any) => void, 
+    reject: (error: Error) => void 
+}[] = [];
 let nextWorker = 0;
+
+let _executeStrategyTask: (taskData: any) => Promise<any>;
 
 if (isMainThread) {
     // --- Main Thread Logic: Create and Manage Pool ---
@@ -14,6 +20,8 @@ if (isMainThread) {
     // Initialize the worker pool
     for (let i = 0; i < NUM_WORKERS; i++) {
         const worker = new Worker('./ExecutionWorker.ts', {
+            // Use ts-node for development environment if building to JS is cumbersome
+            execArgv: /\/ts-node$/.test(process.argv[0]) ? ['--require', 'ts-node/register'] : undefined, 
             workerData: { workerId: i }
         });
 
@@ -35,15 +43,14 @@ if (isMainThread) {
 
         worker.on('exit', (code) => {
             console.error(`Worker ${worker.threadId} exited with code ${code}. Recreating...`);
-            // Simple self-healing: recreate the worker on exit
-            // NOTE: A production pool uses a dedicated library like 'poolifier'
+            // NOTE: Simple self-healing is omitted here for brevity and focus on compilation fix.
         });
 
         workers.push(worker);
     }
     
-    // Function to submit a task to the next available worker
-    export function executeStrategyTask(taskData: any): Promise<any> {
+    // Define the function inside the main thread block
+    _executeStrategyTask = (taskData: any): Promise<any> => {
         return new Promise((resolve, reject) => {
             taskQueue.push({ data: taskData, resolve, reject });
             
@@ -55,6 +62,8 @@ if (isMainThread) {
     }
 
 } else {
-    // --- Worker Thread Logic: Execute the Task ---
-    // This part is defined in a separate file (ExecutionWorker.ts) for clean separation.
+    // This is the worker thread, its logic is in ExecutionWorker.ts
 }
+
+// Corrected Export: Export the function definition from the end of the file
+export const executeStrategyTask = _executeStrategyTask!;
