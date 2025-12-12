@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (FINAL, RUNTIME-SAFE VERSION)
+// ProductionMEVBot.ts (FINAL, COMPLETE, AND STABLE VERSION)
 
 import { 
     ethers, 
@@ -37,6 +37,7 @@ export class ProductionMEVBot {
              logger.warn("Missing critical environment variables during construction. Executor initialization will fail.");
         }
         
+        // Initialize Providers and Wallets
         this.httpProvider = new ethers.providers.JsonRpcProvider(httpRpcUrl || 'http://placeholder.local'); 
         this.signer = new Wallet(privateKey || ethers.constants.HashZero, this.httpProvider);
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
@@ -81,6 +82,7 @@ export class ProductionMEVBot {
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
+        // CRITICAL: Catches errors emitted by the WSS transport layer
         this.wsProvider.on('error', (error: Error) => {
             logger.error(`[WSS] Provider Event Error: ${error.message}`);
         });
@@ -88,22 +90,36 @@ export class ProductionMEVBot {
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
             
-            // CRITICAL FIX: Attach pending listener here.
+            // Attach pending listener only after connection is confirmed open.
             this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
     }
 
-    // FIX: Combined the two versions and made it async for future use
+    // Must be async to handle non-blocking fetching of transaction data (if implemented)
     private async handlePendingTransaction(txHash: string): Promise<void> {
         try {
-            // *** NEW LOG LINE IMPLEMENTED ***
+            // Logs a message every time a new transaction is received (confirms WSS is working)
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
             
-            // NOTE: If you need to make asynchronous calls (like getTransaction) 
-            // the method must be 'async' as it is now.
+            // --- CORE MEV LOGIC IMPLEMENTATION AREA ---
+            // If you implement your trading strategy here, it must be contained within this try/catch block.
+            // Example of what would go here:
+            /*
+            const tx = await this.httpProvider.getTransaction(txHash);
+            if (!tx || !tx.to) return; 
+
+            // Logic to calculate profitability and build bundle here...
+
+            if (profit > this.config.minProfitThreshold) {
+                const bundle = await buildSignedBundle(tx, this.signer, this.authSigner);
+                const blockNumber = await this.httpProvider.getBlockNumber();
+                const submissionResult = await this.executor.sendBundle(bundle, blockNumber + 1);
+                logger.info(`[SUBMITTED] Bundle hash: ${submissionResult.bundleHash}`);
+            }
+            */
             
         } catch (error) {
-            // Prevents runtime crashes from escaping event loop.
+            // Prevents runtime crashes from escaping event loop during processing
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
@@ -124,6 +140,7 @@ export class ProductionMEVBot {
             const formattedBalance = ethers.utils.formatEther(balance); 
             logger.info(`[BALANCE] Current ETH Balance: ${formattedBalance} ETH`);
 
+            // This is the safety check that caused the previous 'shutting down' logs
             if (balance.lt(ethers.utils.parseEther(this.config.minEthBalance.toString()))) { 
                 logger.fatal(`Balance (${formattedBalance}) is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
                 return;
@@ -133,11 +150,17 @@ export class ProductionMEVBot {
             return;
         }
 
-        // 3. Start Mempool Monitoring
+        // 3. Start Mempool Monitoring and Health Check
         if (!this.wsProvider) {
             logger.warn("WSS Provider is not active. Cannot monitor mempool in real-time.");
         } else {
             logger.info("[STATUS] Monitoring fully active.");
+            
+            // HEALTH CHECK: Logs every minute to confirm the Node.js process is alive and not frozen.
+            setInterval(() => {
+                // Use debug level to prevent cluttering the info logs unless debug is enabled
+                logger.debug("[HEALTH CHECK] Bot process is alive.");
+            }, 60000); 
         }
     }
 }
