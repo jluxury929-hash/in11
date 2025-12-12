@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (FINAL, COMPLETE, AND STABLE VERSION)
+// ProductionMEVBot.ts (ABSOLUTE FINAL, SELF-HEALING VERSION)
 
 import { 
     ethers, 
@@ -9,6 +9,9 @@ import * as dotenv from 'dotenv';
 import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
+
+// Global variable for a short delay on reconnection attempts
+const RECONNECT_DELAY_MS = 5000; 
 
 export class ProductionMEVBot { 
     private signer: Wallet; 
@@ -43,17 +46,31 @@ export class ProductionMEVBot {
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
         this.config.walletAddress = this.signer.address;
         
-        const wssRpcUrl = process.env.ETH_WSS_URL;
-        if (wssRpcUrl) {
-            try {
-                this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
-                this.setupWsConnectionListeners();
-            } catch (error) {
-                logger.error("WebSocket Provider failed to initialize.", error);
-                this.wsProvider = undefined; 
-            }
-        }
+        this.initializeWsProvider();
+        
         logger.info("Bot configuration loaded.");
+    }
+
+    // New method to handle WSS provider initialization/reinitialization
+    private initializeWsProvider(): void {
+        const wssRpcUrl = process.env.ETH_WSS_URL;
+        if (!wssRpcUrl) {
+            this.wsProvider = undefined;
+            return;
+        }
+
+        try {
+            // Dispose of the old provider if it exists
+            if (this.wsProvider) {
+                this.wsProvider.removeAllListeners();
+            }
+            
+            this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
+            this.setupWsConnectionListeners();
+        } catch (error) {
+            logger.error("WebSocket Provider failed to initialize.", error);
+            this.wsProvider = undefined; 
+        }
     }
 
     private async initializeExecutor(): Promise<void> {
@@ -82,11 +99,17 @@ export class ProductionMEVBot {
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
-        // CRITICAL: Catches errors emitted by the WSS transport layer
         this.wsProvider.on('error', (error: Error) => {
-            logger.error(`[WSS] Provider Event Error: ${error.message}`);
+            logger.error(`[WSS] Provider Event Error: ${error.message}. Attempting reconnect...`);
+            this.reconnectWsProvider();
         });
 
+        // CRITICAL FIX: Explicitly listen for the close event and reconnect
+        this.wsProvider.on('close', (code: number, reason: string) => {
+            logger.error(`[WSS] Connection Closed (Code: ${code}). Reason: ${reason}. Attempting reconnect...`);
+            this.reconnectWsProvider();
+        });
+        
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
             
@@ -95,31 +118,30 @@ export class ProductionMEVBot {
         });
     }
 
-    // Must be async to handle non-blocking fetching of transaction data (if implemented)
+    // New method to handle the reconnection process
+    private reconnectWsProvider(): void {
+        if (!process.env.ETH_WSS_URL) return;
+
+        // Give the network a moment before retrying
+        setTimeout(() => {
+            logger.warn("[WSS] Retrying connection...");
+            this.initializeWsProvider(); 
+        }, RECONNECT_DELAY_MS);
+    }
+
     private async handlePendingTransaction(txHash: string): Promise<void> {
+        // We now check if the executor is defined *inside* the handler to prevent runtime errors if it failed to init.
+        if (!this.executor) return; 
+
         try {
-            // Logs a message every time a new transaction is received (confirms WSS is working)
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
             
             // --- CORE MEV LOGIC IMPLEMENTATION AREA ---
-            // If you implement your trading strategy here, it must be contained within this try/catch block.
-            // Example of what would go here:
-            /*
-            const tx = await this.httpProvider.getTransaction(txHash);
-            if (!tx || !tx.to) return; 
-
-            // Logic to calculate profitability and build bundle here...
-
-            if (profit > this.config.minProfitThreshold) {
-                const bundle = await buildSignedBundle(tx, this.signer, this.authSigner);
-                const blockNumber = await this.httpProvider.getBlockNumber();
-                const submissionResult = await this.executor.sendBundle(bundle, blockNumber + 1);
-                logger.info(`[SUBMITTED] Bundle hash: ${submissionResult.bundleHash}`);
-            }
-            */
+            // 1. Fetch TX Details: const tx = await this.httpProvider.getTransaction(txHash);
+            // 2. Simulate Trade & Check Profit:
+            // 3. Submit Bundle (e.g., this.executor.sendBundle(...) )
             
         } catch (error) {
-            // Prevents runtime crashes from escaping event loop during processing
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
@@ -140,7 +162,6 @@ export class ProductionMEVBot {
             const formattedBalance = ethers.utils.formatEther(balance); 
             logger.info(`[BALANCE] Current ETH Balance: ${formattedBalance} ETH`);
 
-            // This is the safety check that caused the previous 'shutting down' logs
             if (balance.lt(ethers.utils.parseEther(this.config.minEthBalance.toString()))) { 
                 logger.fatal(`Balance (${formattedBalance}) is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
                 return;
@@ -156,9 +177,8 @@ export class ProductionMEVBot {
         } else {
             logger.info("[STATUS] Monitoring fully active.");
             
-            // HEALTH CHECK: Logs every minute to confirm the Node.js process is alive and not frozen.
+            // HEALTH CHECK: Logs every minute to confirm the Node.js process is alive.
             setInterval(() => {
-                // Use debug level to prevent cluttering the info logs unless debug is enabled
                 logger.debug("[HEALTH CHECK] Bot process is alive.");
             }, 60000); 
         }
