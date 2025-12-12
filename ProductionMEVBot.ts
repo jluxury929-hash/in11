@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (COMPLETE)
+// src/ProductionMEVBot.ts
 
 import { 
     ethers, 
@@ -8,15 +8,15 @@ import {
 
 import axios from 'axios'; 
 import * as dotenv from 'dotenv';
-import { logger } from './logger';
-import { BotConfig } from './types'; 
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
+import { logger } from './logger.js'; // FIX: .js extension
+import { BotConfig } from './types.js'; // FIX: .js extension
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor.js'; // FIX: .js extension
 
-import { executeStrategyTask } from './WorkerPool'; 
+import { executeStrategyTask } from './WorkerPool.js'; // FIX: .js extension
 
 // Global constants
 const RECONNECT_DELAY_MS = 5000; 
-const CHAIN_ID = 1; // 1 for Ethereum Mainnet
+const CHAIN_ID = 1; 
 
 export class ProductionMEVBot { 
     private signer: Wallet; 
@@ -70,7 +70,6 @@ export class ProductionMEVBot {
         try {
             if (this.wsProvider) {
                 this.wsProvider.removeAllListeners();
-                // Check if destroy exists to safely close the socket
                 if (typeof (this.wsProvider as any).destroy === 'function') {
                     (this.wsProvider as any).destroy(); 
                 }
