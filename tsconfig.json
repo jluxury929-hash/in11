@@ -9,5 +9,6 @@
     "skipLibCheck": true,
     "outDir": "./dist"
   },
-  "include": ["src/**/*"] 
+  "include": ["**/*.ts"], // <-- Tells tsc to look in the current directory and subdirectories
+  "exclude": ["node_modules", "dist", "temp"] // <-- Important to prevent compiling dependencies or output
 }
