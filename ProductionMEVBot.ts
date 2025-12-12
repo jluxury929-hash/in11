@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (ABSOLUTE FINAL, SELF-HEALING VERSION)
+// ProductionMEVBot.ts (COMPLETE, ROBUST, AND READY FOR MEV LOGIC)
 
 import { 
     ethers, 
@@ -8,7 +8,8 @@ import {
 import * as dotenv from 'dotenv';
 import { logger } from './logger';
 import { BotConfig } from './types'; 
-import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor';
+// NOTE: FlashbotsMEVExecutor must be a separate file in your project
+import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
 // Global variable for a short delay on reconnection attempts
 const RECONNECT_DELAY_MS = 5000; 
@@ -46,12 +47,13 @@ export class ProductionMEVBot {
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
         this.config.walletAddress = this.signer.address;
         
+        // ** CRITICAL CHANGE 1: Use the new initializer for WSS connection **
         this.initializeWsProvider();
         
         logger.info("Bot configuration loaded.");
     }
 
-    // New method to handle WSS provider initialization/reinitialization
+    // ** CRITICAL ADDITION 1: Centralized WSS Provider Initialization (for reconnecting) **
     private initializeWsProvider(): void {
         const wssRpcUrl = process.env.ETH_WSS_URL;
         if (!wssRpcUrl) {
@@ -60,7 +62,7 @@ export class ProductionMEVBot {
         }
 
         try {
-            // Dispose of the old provider if it exists
+            // Remove all listeners from the old provider before creating a new one
             if (this.wsProvider) {
                 this.wsProvider.removeAllListeners();
             }
@@ -96,6 +98,7 @@ export class ProductionMEVBot {
         }
     }
 
+    // ** CRITICAL CHANGE 2: Added 'close' listener for robust reconnection **
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
@@ -104,7 +107,6 @@ export class ProductionMEVBot {
             this.reconnectWsProvider();
         });
 
-        // CRITICAL FIX: Explicitly listen for the close event and reconnect
         this.wsProvider.on('close', (code: number, reason: string) => {
             logger.error(`[WSS] Connection Closed (Code: ${code}). Reason: ${reason}. Attempting reconnect...`);
             this.reconnectWsProvider();
@@ -112,17 +114,15 @@ export class ProductionMEVBot {
         
         this.wsProvider.on('open', () => {
             logger.info("WSS Connection established successfully! Monitoring mempool...");
-            
-            // Attach pending listener only after connection is confirmed open.
             this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
     }
 
-    // New method to handle the reconnection process
+    // ** CRITICAL ADDITION 2: Reconnection Logic (The Self-Healing Function) **
     private reconnectWsProvider(): void {
         if (!process.env.ETH_WSS_URL) return;
 
-        // Give the network a moment before retrying
+        // Use a timeout to avoid spamming the provider if the connection immediately fails
         setTimeout(() => {
             logger.warn("[WSS] Retrying connection...");
             this.initializeWsProvider(); 
@@ -130,16 +130,21 @@ export class ProductionMEVBot {
     }
 
     private async handlePendingTransaction(txHash: string): Promise<void> {
-        // We now check if the executor is defined *inside* the handler to prevent runtime errors if it failed to init.
+        // Prevent action if the executor is not ready
         if (!this.executor) return; 
 
         try {
+            // Log for operational confirmation
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
             
-            // --- CORE MEV LOGIC IMPLEMENTATION AREA ---
-            // 1. Fetch TX Details: const tx = await this.httpProvider.getTransaction(txHash);
-            // 2. Simulate Trade & Check Profit:
-            // 3. Submit Bundle (e.g., this.executor.sendBundle(...) )
+            // ----------------------------------------------------------------------
+            // !!! CORE MEV TRADING LOGIC GOES HERE !!!
+            // This is where you implement the strategy to:
+            // 1. Fetch TX details: await this.httpProvider.getTransaction(txHash);
+            // 2. Simulate the trade and calculate profit.
+            // 3. Build a Flashbots bundle.
+            // 4. Submit the bundle: await this.executor.sendBundle(...)
+            // ----------------------------------------------------------------------
             
         } catch (error) {
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
@@ -156,7 +161,7 @@ export class ProductionMEVBot {
             return;
         }
 
-        // 2. Check Wallet Balance
+        // 2. Check Wallet Balance (Safety Check)
         try {
             const balance = await this.httpProvider.getBalance(this.config.walletAddress);
             const formattedBalance = ethers.utils.formatEther(balance); 
@@ -177,7 +182,7 @@ export class ProductionMEVBot {
         } else {
             logger.info("[STATUS] Monitoring fully active.");
             
-            // HEALTH CHECK: Logs every minute to confirm the Node.js process is alive.
+            // ** CRITICAL ADDITION 3: Health Check **
             setInterval(() => {
                 logger.debug("[HEALTH CHECK] Bot process is alive.");
             }, 60000); 
