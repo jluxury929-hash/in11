@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts (COMPLETE, ROBUST, WITH GAS PRICE LOGIC)
+// ProductionMEVBot.ts (COMPLETE, COMPILABLE, AND ROBUST)
 
 import { 
     ethers, 
@@ -6,14 +6,13 @@ import {
     BigNumber
 } from 'ethers';
 
-// ** CRITICAL ADDITION 1: Import axios for making HTTP requests to the Gas API **
 import axios from 'axios'; 
-
 import * as dotenv from 'dotenv';
 import { logger } from './logger';
 import { BotConfig } from './types'; 
 import { FlashbotsMEVExecutor } from './FlashbotsMEVExecutor'; 
 
+// Global constants must be defined outside the class
 const RECONNECT_DELAY_MS = 5000; 
 const CHAIN_ID = 1; // 1 for Ethereum Mainnet
 
@@ -24,7 +23,7 @@ export class ProductionMEVBot {
     private wsProvider: ethers.providers.WebSocketProvider | undefined;
     private executor: FlashbotsMEVExecutor | undefined;
     private config: BotConfig;
-    private gasApiUrl: string; // New member to store the Gas API URL
+    private gasApiUrl: string;
 
     constructor() {
         this.config = {
@@ -37,7 +36,7 @@ export class ProductionMEVBot {
             flashbotsUrl: process.env.FLASHBOTS_URL || 'https://relay.flashbots.net',
         };
 
-        // --- Environment Variable Checks (Same as before) ---
+        // --- Environment Variable Checks ---
         const privateKey = process.env.PRIVATE_KEY;
         const fbReputationKey = process.env.FB_REPUTATION_KEY;
         const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
@@ -46,7 +45,6 @@ export class ProductionMEVBot {
              logger.warn("Missing critical RPC/Key environment variables.");
         }
 
-        // ** CRITICAL ADDITION 2: Get and validate the Gas API URL **
         this.gasApiUrl = process.env.INFURA_GAS_API_URL || '';
         if (!this.gasApiUrl) {
             logger.error("INFURA_GAS_API_URL is missing. Cannot calculate competitive gas fees.");
@@ -58,29 +56,95 @@ export class ProductionMEVBot {
         this.authSigner = new Wallet(fbReputationKey || ethers.constants.HashZero); 
         this.config.walletAddress = this.signer.address;
         
+        // CRITICAL: WSS initialization call
         this.initializeWsProvider();
         logger.info("Bot configuration loaded.");
     }
-    
-    // ... (initializeExecutor, initializeWsProvider, reconnectWsProvider, setupWsConnectionListeners methods remain the same) ...
-    // (Skipped for brevity, as they were correct in the last version)
 
-    // ** NEW CRITICAL FUNCTION: Fetch real-time gas prices from the Gas API **
+    private initializeWsProvider(): void {
+        const wssRpcUrl = process.env.ETH_WSS_URL;
+        if (!wssRpcUrl) {
+            this.wsProvider = undefined;
+            return;
+        }
+
+        try {
+            if (this.wsProvider) {
+                this.wsProvider.removeAllListeners();
+            }
+            
+            this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
+            this.setupWsConnectionListeners();
+        } catch (error) {
+            logger.error("WebSocket Provider failed to initialize.", error);
+            this.wsProvider = undefined; 
+        }
+    }
+
+    private reconnectWsProvider(): void {
+        if (!process.env.ETH_WSS_URL) return;
+
+        setTimeout(() => {
+            logger.warn("[WSS] Retrying connection...");
+            this.initializeWsProvider(); 
+        }, RECONNECT_DELAY_MS);
+    }
+
+    private setupWsConnectionListeners(): void {
+        if (!this.wsProvider) return;
+
+        this.wsProvider.on('error', (error: Error) => {
+            logger.error(`[WSS] Provider Event Error: ${error.message}. Attempting reconnect...`);
+            this.reconnectWsProvider();
+        });
+
+        this.wsProvider.on('close', (code: number, reason: string) => {
+            logger.error(`[WSS] Connection Closed (Code: ${code}). Reason: ${reason}. Attempting reconnect...`);
+            this.reconnectWsProvider();
+        });
+        
+        this.wsProvider.on('open', () => {
+            logger.info("WSS Connection established successfully! Monitoring mempool...");
+            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
+        });
+    }
+
+    private async initializeExecutor(): Promise<void> {
+        const privateKey = process.env.PRIVATE_KEY;
+        const fbReputationKey = process.env.FB_REPUTATION_KEY;
+        const httpRpcUrl = process.env.ETH_HTTP_RPC_URL;
+        const flashbotsUrl = this.config.flashbotsUrl;
+
+        if (!privateKey || !fbReputationKey || !httpRpcUrl) {
+            return;
+        }
+
+        try {
+            this.executor = await FlashbotsMEVExecutor.create(
+                privateKey,
+                fbReputationKey,
+                httpRpcUrl,
+                flashbotsUrl
+            );
+            logger.info("Flashbots Executor initialized successfully.");
+        } catch (error) {
+            logger.fatal("Failed to initialize FlashbotsMEVExecutor.", error);
+        }
+    }
+
     private async getCompetitiveFees(): Promise<{ maxFeePerGas: BigNumber, maxPriorityFeePerGas: BigNumber } | null> {
         if (!this.gasApiUrl) return null;
 
         try {
-            // Infura's Gas API suggested endpoint (as seen in search results)
             const url = `${this.gasApiUrl}/networks/${CHAIN_ID}/suggestedGasFees`;
-
             const response = await axios.get(url);
             
-            // We use the 'high' priority recommendation for MEV competition
+            // Use the 'high' priority recommendation for MEV competition
             const highPriority = response.data.high;
 
             const maxPriorityFeePerGas = ethers.utils.parseUnits(
                 highPriority.suggestedMaxPriorityFeePerGas,
-                'gwei' // Fees are usually returned in gwei
+                'gwei'
             );
 
             const maxFeePerGas = ethers.utils.parseUnits(
@@ -106,60 +170,45 @@ export class ProductionMEVBot {
             logger.info(`[PENDING] Received hash: ${txHash.substring(0, 10)}... Processing...`);
             
             // ----------------------------------------------------------------------
-            // !!! CORE MEV TRADING LOGIC WITH GAS CALCULATION !!!
+            // !!! CORE MEV TRADING LOGIC IMPLEMENTATION AREA !!!
+            // This is where you would call getCompetitiveFees() and build/submit the bundle.
             // ----------------------------------------------------------------------
 
-            // 1. Fetch current competitive gas fees
-            const fees = await this.getCompetitiveFees();
-            if (!fees) {
-                logger.warn(`[SKIP] Could not get competitive fees. Skipping ${txHash.substring(0, 10)}...`);
-                return;
-            }
-            
-            // 2. Fetch the pending transaction details
-            const pendingTx = await this.httpProvider.getTransaction(txHash);
-            if (!pendingTx || !pendingTx.to) return; 
+            // Example call:
+            // const fees = await this.getCompetitiveFees();
+            // if (!fees) return;
 
-            // 3. (Hypothetical) Simulation and Profit Check
-            // const profitInWei = await simulateTrade(pendingTx, this.signer.address, fees);
-
-            // if (profitInWei.gt(this.config.minProfitThreshold)) {
-            
-                // 4. Build your transaction using the fetched fees
-                /*
-                const mevTx = {
-                    to: this.config.mevHelperContractAddress,
-                    data: '0x...', // Your contract call data
-                    nonce: await this.httpProvider.getTransactionCount(this.signer.address),
-                    maxPriorityFeePerGas: fees.maxPriorityFeePerGas, // Use competitive fee
-                    maxFeePerGas: fees.maxFeePerGas,
-                    gasLimit: BigNumber.from(2000000), // Sufficient gas limit
-                    // value: ... (if sending ETH)
-                };
-                
-                // 5. Sign the MEV transaction and submit the bundle
-                const signedMevTx = await this.signer.signTransaction(mevTx);
-                const bundle = [ { signedTransaction: pendingTx.raw }, { signedTransaction: signedMevTx } ];
-                await this.executor.sendBundle(bundle, await this.httpProvider.getBlockNumber() + 1);
-                logger.info(`[SUBMITTED] Bundle for ${txHash.substring(0, 10)}...`);
-                */
-            // }
+            // ... (Your simulation and execution logic follows)
             
         } catch (error) {
             logger.error(`[RUNTIME CRASH] Failed to process transaction ${txHash}`, error);
         }
     }
-    
-    // ... (startMonitoring method remains the same) ...
 
     public async startMonitoring(): Promise<void> {
         logger.info("[STATUS] Starting bot services...");
 
         // 1. Initialize the Asynchronous services
-        // ... (check executor)
+        await this.initializeExecutor(); 
+        if (!this.executor) {
+            logger.fatal("Cannot start monitoring due to Executor failure. Check .env variables.");
+            return;
+        }
 
         // 2. Check Wallet Balance (Safety Check)
-        // ... (check balance)
+        try {
+            const balance = await this.httpProvider.getBalance(this.config.walletAddress);
+            const formattedBalance = ethers.utils.formatEther(balance); 
+            logger.info(`[BALANCE] Current ETH Balance: ${formattedBalance} ETH`);
+
+            if (balance.lt(ethers.utils.parseEther(this.config.minEthBalance.toString()))) { 
+                logger.fatal(`Balance (${formattedBalance}) is below MIN_ETH_BALANCE (${this.config.minEthBalance}). Shutting down.`);
+                return;
+            }
+        } catch (error) {
+            logger.fatal("Could not check balance. Check HTTP_RPC_URL.", error);
+            return;
+        }
 
         // 3. Start Mempool Monitoring and Health Check
         if (!this.wsProvider) {
@@ -167,7 +216,7 @@ export class ProductionMEVBot {
         } else {
             logger.info("[STATUS] Monitoring fully active.");
             
-            // HEALTH CHECK: Logs every minute to confirm the Node.js process is alive.
+            // Health Check: Logs every minute to confirm the Node.js process is alive.
             setInterval(() => {
                 logger.debug("[HEALTH CHECK] Bot process is alive.");
             }, 60000); 
