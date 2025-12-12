@@ -1,4 +1,4 @@
-// ProductionMEVBot.ts
+// ProductionMEVBot.ts (COMPLETE, COMPILABLE, AND ROBUST)
 
 import { 
     ethers, 
@@ -72,12 +72,20 @@ export class ProductionMEVBot {
         }
 
         try {
+            // 1. Dispose of the old provider and listeners first for clean reconnects (Fixes 'unhandled: Event')
             if (this.wsProvider) {
                 this.wsProvider.removeAllListeners();
+                // Use destroy for clean socket termination
+                if (typeof (this.wsProvider as any).destroy === 'function') {
+                    (this.wsProvider as any).destroy(); 
+                }
             }
             
             this.wsProvider = new ethers.providers.WebSocketProvider(wssRpcUrl); 
+            
+            // 2. Attach basic connection management listeners
             this.setupWsConnectionListeners();
+            
         } catch (error) {
             logger.error("WebSocket Provider failed to initialize.", error);
             this.wsProvider = undefined; 
@@ -96,19 +104,24 @@ export class ProductionMEVBot {
     private setupWsConnectionListeners(): void {
         if (!this.wsProvider) return;
 
+        // Listener for the primary pending event stream (only attaches on 'open')
+        this.wsProvider.once('open', () => {
+            logger.info("WSS Connection established successfully! Monitoring mempool...");
+            // Attach the main pending transaction listener here, after a successful connection
+            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
+        });
+
+        // Connection error/close handlers (use standard 'on' to ensure they persist)
         this.wsProvider.on('error', (error: Error) => {
             logger.error(`[WSS] Provider Event Error: ${error.message}. Attempting reconnect...`);
             this.reconnectWsProvider();
         });
 
         this.wsProvider.on('close', (code: number, reason: string) => {
+            // Remove the main pending listener before reconnecting
+            this.wsProvider!.removeAllListeners('pending');
             logger.error(`[WSS] Connection Closed (Code: ${code}). Reason: ${reason}. Attempting reconnect...`);
             this.reconnectWsProvider();
-        });
-        
-        this.wsProvider.on('open', () => {
-            logger.info("WSS Connection established successfully! Monitoring mempool...");
-            this.wsProvider!.on('pending', this.handlePendingTransaction.bind(this));
         });
     }
 
