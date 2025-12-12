@@ -1,4 +1,4 @@
-// WorkerPool.ts
+// src/WorkerPool.ts
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 import * as os from 'os';
 
@@ -15,8 +15,9 @@ let _executeStrategyTask: (taskData: any) => Promise<any>;
 
 if (isMainThread) {
     for (let i = 0; i < NUM_WORKERS; i++) {
-        const worker = new Worker('./ExecutionWorker.ts', {
-            // NOTE: This uses ts-node for development. Remove for production compilation.
+        // NOTE: The worker path must be relative to the running main script (usually in dist/)
+        const worker = new Worker('./ExecutionWorker.js', { 
+            // The execArgv is needed for ts-node development mode, but the path is .js for compiled code
             execArgv: /\/ts-node$/.test(process.argv[0]) ? ['--require', 'ts-node/register'] : undefined, 
             workerData: { workerId: i }
         });
